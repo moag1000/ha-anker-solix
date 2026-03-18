@@ -11,10 +11,11 @@
     }
   ],
   "config_flow": true,
-  "dependencies": ["bluetooth"],
+  "dependencies": [],
+  "after_dependencies": ["bluetooth"],
   "documentation": "https://github.com/thomluther/ha-anker-solix",
   "integration_type": "hub",
-  "iot_class": "local_polling",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/thomluther/ha-anker-solix/issues",
   "requirements": [
     "aiohttp>=3.10.11",

@@ -72,6 +72,9 @@ from .const import (
 from .coordinator import AnkerSolixDataUpdateCoordinator
 from .solixapi.apitypes import ApiCategories, SolixDeviceType
 
+# BLE coordinator key in hass.data[DOMAIN]
+BLE_COORDINATOR = "ble_coordinator"
+
 
 # https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -173,9 +176,75 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if len(active) >= len(entries):
         ir.async_delete_issue(hass, DOMAIN, "duplicate_devices")
 
+    # Set up optional BLE coordinator if bluetooth is available
+    await _async_setup_ble(hass, entry, coordinator)
+
     # forward to platform to create entities
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+async def _async_setup_ble(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    cloud_coordinator: AnkerSolixDataUpdateCoordinator,
+) -> None:
+    """Set up BLE coordinator and discovery if bluetooth is available.
+
+    This is optional - the integration works without Bluetooth.
+    BLE provides supplemental local telemetry data as fallback
+    when the cloud API is unavailable.
+
+    Data origin: Anker APK v3.18.0 + SolixBLE (flip-dots).
+    """
+    try:
+        from homeassistant.components import bluetooth  # noqa: PLC0415
+    except ImportError:
+        LOGGER.debug("Bluetooth component not available, skipping BLE setup")
+        return
+
+    # Check if bluetooth integration is actually loaded
+    if not hass.data.get("bluetooth_manager"):
+        LOGGER.debug("Bluetooth manager not available, skipping BLE setup")
+        return
+
+    from .ble_coordinator import AnkerSolixBleCoordinator  # noqa: PLC0415
+
+    ble_coordinator = AnkerSolixBleCoordinator(
+        hass=hass,
+        cloud_coordinator=cloud_coordinator,
+    )
+
+    def _ble_device_discovered(
+        service_info: bluetooth.BluetoothServiceInfoBleak,
+        change: bluetooth.BluetoothChange,
+    ) -> None:
+        """Handle discovered BLE device matching Solix UUID."""
+        if AnkerSolixBleCoordinator.device_matches_solix(service_info):
+            LOGGER.info(
+                "Discovered Anker Solix BLE device: %s (%s)",
+                service_info.name,
+                service_info.address,
+            )
+            hass.async_create_task(
+                ble_coordinator.register_device(service_info.device)
+            )
+
+    # Register callback for BLE device discovery
+    entry.async_on_unload(
+        bluetooth.async_register_callback(
+            hass,
+            _ble_device_discovered,
+            bluetooth.BluetoothCallbackMatcher(
+                service_uuid="0000ff09-0000-1000-8000-00805f9b34fb"
+            ),
+            bluetooth.BluetoothScanningMode.ACTIVE,
+        )
+    )
+
+    # Store BLE coordinator
+    hass.data[DOMAIN][BLE_COORDINATOR] = ble_coordinator
+    LOGGER.info("BLE coordinator initialized, listening for Solix devices")
 
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -285,6 +354,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_API_REQUEST,
         ]:
             hass.services.async_remove(DOMAIN, action)
+    # Shut down BLE coordinator if running
+    if ble_coordinator := hass.data[DOMAIN].get(BLE_COORDINATOR):
+        await ble_coordinator.async_shutdown()
+        hass.data[DOMAIN].pop(BLE_COORDINATOR, None)
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
     return unloaded

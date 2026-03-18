@@ -124,6 +124,23 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler."""
         return AnkerSolixOptionsFlowHandler(config_entry)
 
+    async def async_step_bluetooth(
+        self, discovery_info: config_entries.ConfigFlowResult | Any = None
+    ) -> config_entries.FlowResult:
+        """Handle BLE device discovery.
+
+        When HA discovers an Anker Solix BLE device (via manifest bluetooth
+        matchers), it calls this step. Since the integration requires cloud
+        credentials, we redirect to the standard user setup flow. The BLE
+        device will be automatically picked up by the BLE coordinator once
+        the integration is configured.
+
+        Data origin: UUID matcher from Anker APK v3.18.0 reverse engineering.
+        """
+        # BLE devices need cloud credentials too, so redirect to user flow
+        # The BLE coordinator will auto-discover the device once set up
+        return await self.async_step_user()
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
