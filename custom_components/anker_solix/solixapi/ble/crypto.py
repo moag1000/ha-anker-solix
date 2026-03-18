@@ -9,6 +9,8 @@ Protocol (reverse-engineered from SolixBLE + Anker app v3.18.0):
     3. Compute ECDH shared secret (32 bytes)
     4. shared_secret[:16] = AES-128 key, shared_secret[16:] = CBC IV
     5. Encrypt/decrypt command payloads with AES-128-CBC + PKCS7 padding
+
+Credits: ECDH flow derived from SolixBLE (@flip-dots), key material from APK RE.
 """
 
 from __future__ import annotations

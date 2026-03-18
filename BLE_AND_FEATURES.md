@@ -29,14 +29,14 @@ reverse engineering, enabling local device access without cloud dependency.
 
 All reverse-engineered data in this branch comes from the following sources:
 
-| Source | What it provided |
-|--------|-----------------|
-| **Anker App v3.18.0 APK** | Decompiled `libapp.so` + Dart analysis: REST endpoint URLs, MQTT topic structures, BLE GATT UUIDs, ECDH key material, TLV opcode tables, negotiation sequences |
-| **[SolixBLE](https://github.com/flip-dots/SolixBLE)** (flip-dots) | BLE protocol reverse engineering: ECDH crypto flow, GATT characteristic UUIDs, packet framing, telemetry parsing offsets, command opcodes |
-| **[AnkerSolixBLE](https://github.com/thomluther/AnkerSolixBLE)** (thomluther) | Telemetry-only BLE reference implementation, data structure validation |
-| **[HaSolixBLE](https://github.com/flip-dots/HaSolixBLE)** (flip-dots) | HA integration patterns for BLE: config flow, coordinator, entity structure |
-| **[beurer_daylight_lamps](https://github.com/moag1000/beurer_daylight_lamps)** (moag1000) | HA BLE best practices: `bleak-retry-connector` patterns, multi-adapter support, exponential backoff reconnection, connection health metrics |
-| **Anker official HA integration** | Local Modbus TCP reference for `iot_class: local_polling` approach |
+| Source | Author | What it provided | Files affected |
+|--------|--------|-----------------|----------------|
+| **Anker App v3.18.0 APK** | Anker Innovations | Decompiled `libapp.so` + Dart analysis: ~50 REST endpoint URLs, MQTT topic structures, BLE GATT UUIDs, ECDH key material, TLV opcode tables, 6-stage negotiation sequences | `apitypes.py`, `ble/__init__.py`, `mqtt.py` |
+| **[SolixBLE](https://github.com/flip-dots/SolixBLE)** | [@flip-dots](https://github.com/flip-dots) | BLE protocol RE: TLV-based telemetry parsing (26 tag keys, scaling factors, little-endian), ECDH crypto flow, GATT UUIDs, packet framing, command opcodes | `ble/client.py` (TLV parser), `ble/__init__.py` (TLV constants), `ble/crypto.py` |
+| **[AnkerSolixBLE](https://github.com/thomluther/AnkerSolixBLE)** | [@thomluther](https://github.com/thomluther) | Telemetry byte-offset validation, SB2 Pro data structure confirmation, cross-reference for scaling factor verification | `ble/client.py` (offset validation) |
+| **[HaSolixBLE](https://github.com/flip-dots/HaSolixBLE)** | [@flip-dots](https://github.com/flip-dots) | HA integration patterns: config flow `async_step_bluetooth`, coordinator structure, bluetooth matchers, entity platform design | `ble_coordinator.py`, `config_flow.py`, `manifest.json` |
+| **[beurer_daylight_lamps](https://github.com/moag1000/beurer_daylight_lamps)** | [@moag1000](https://github.com/moag1000) | HA BLE best practices: `bleak-retry-connector` with `establish_connection()`, exponential backoff (3s-120s), adaptive polling intervals (30s/5min/15min), connection health metrics | `ble/client.py` (reconnection), `ble_coordinator.py` (adaptive polling) |
+| **[ha-anker-solix](https://github.com/thomluther/ha-anker-solix)** | [@thomluther](https://github.com/thomluther) | Base integration: cloud API, MQTT coordinator, entity platforms, device registry — all our additions build on this foundation | All files (base) |
 
 ---
 
@@ -48,10 +48,10 @@ Complete BLE protocol implementation for direct device communication:
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Constants: GATT UUIDs, negotiation commands, telemetry offsets |
+| `__init__.py` | Constants: GATT UUIDs, negotiation commands, TLV tag keys (26 fields) |
 | `crypto.py` | ECDH key exchange (secp256r1) + AES-128-CBC session encryption |
-| `tlv.py` | TLV command encoding/decoding with 40+ opcodes |
-| `client.py` | Full BLE client with connection management and telemetry parsing |
+| `tlv.py` | TLV command encoding/decoding with 40+ opcodes (scaffolding for future BLE commands) |
+| `client.py` | Full BLE client with connection management, TLV-based telemetry parsing |
 
 **BLE Protocol Stack:**
 1. Device discovery via `UUID_IDENTIFIER` (`0000ff09-...`)
@@ -61,19 +61,47 @@ Complete BLE protocol implementation for direct device communication:
 5. Encrypted telemetry via `UUID_TELEMETRY` (`8c850003-...`)
 6. Fragmented telemetry reassembly (large + small packet merging)
 
-**Telemetry data available via BLE:**
-- Battery percentage, temperature
-- Solar power input (W)
-- AC power output (W)
-- Total solar/output energy (Wh)
-- Battery stored energy, discharge power
+**Telemetry parsing:** TLV-based (Tag-Length-Value), matching flip-dots/SolixBLE.
+Format: `[1B tag][1B length][N bytes value]`, value[0] is type byte, data at value[1:].
+Little-endian integers. Robust to firmware field reordering (unlike fixed byte offsets).
+
+**Telemetry fields available via BLE (26 fields for SB2 Pro):**
+
+| Category | Field | TLV Key | Unit | Description |
+|----------|-------|---------|------|-------------|
+| Identity | serial_number | 0xa2 | - | Device serial |
+| Battery | battery_percent | 0xa3 | % | State of charge |
+| Battery | battery_percent_aggregate | 0xad | % | Average across all batteries |
+| Battery | battery_temperature | 0xaa | °C | Signed temperature |
+| Battery | battery_charge_power_w | 0xb0 | W | Charging power (raw/100) |
+| Battery | discharge_power_w | 0xb7 | W | Discharge power (raw/100) |
+| Battery | battery_energy_wh | 0xb2 | Wh | Cumulative charged energy |
+| Solar | solar_power_w | 0xab | W | Total solar input (raw/10) |
+| Solar | solar_pv1-4_power_w | 0xca-cd | W | Per-MPPT solar input |
+| Solar | total_solar_wh | 0xb1 | Wh | Cumulative solar yield |
+| Output | ac_power_w | 0xac | W | AC power output |
+| Output | ac_power_out_sockets_w | 0xc8 | W | Pass-through socket output |
+| Output | power_out_w | 0xd3 | W | Total power out |
+| Output | total_output_wh | 0xb3 | Wh | Cumulative output energy |
+| Output | house_demand_w | 0xc4 | W | Real-time house consumption |
+| Output | consumed_energy_wh | 0xc9 | Wh | Cumulative consumed energy |
+| Grid | grid_to_home_power_w | 0xbc | W | Grid import power |
+| Grid | pv_to_grid_power_w | 0xbd | W | PV export to grid |
+| Grid | grid_import_energy_wh | 0xbe | Wh | Cumulative grid import |
+| Grid | grid_export_energy_wh | 0xbf | Wh | Cumulative grid export |
+| FW | software_version | 0xa6 | - | Main firmware |
+| FW | software_version_controller | 0xa7 | - | Controller MCU firmware |
+| FW | software_version_expansion | 0xa8 | - | Expansion battery firmware |
 
 **Connection features (inspired by beurer_daylight_lamps):**
 - `bleak-retry-connector` with multi-adapter support (ESPHome/Shelly BLE proxies)
 - Auto-reconnection with exponential backoff (3s initial, 120s max)
 - Connection health metrics (reconnect count, command success/failure)
 - Push update callback for coordinator integration
-- HA Bluetooth stack integration (`bluetooth` dependency)
+- HA Bluetooth stack integration (`after_dependencies: ["bluetooth"]`, optional)
+- BLE coordinator (`ble_coordinator.py`) with adaptive polling (30s/5min/15min)
+- HA config flow `async_step_bluetooth()` redirects to cloud credentials setup
+- Cloud coordinator overlay: BLE telemetry supplements cloud data (debug logging stage)
 
 ### 2. New API Methods (`api.py`)
 
@@ -205,16 +233,17 @@ Original 3 (already existed) plus 5 new:
 
 The following improvements were made to the MQTT module (`mqtt.py`):
 
-- **Gzip decompression**: Not yet implemented. The APK shows compressed MQTT payloads for certain device models; handler stubs are identified but decompression is pending.
-- **Port 443 fallback**: Not yet implemented. The APK reveals a TLS-over-443 fallback path for restrictive networks where port 8883 is blocked. The current implementation uses port 8883 only.
-- **New message handler stubs**: The APK-discovered topic structures are mapped in `mqttmap.py` and `mqttcmdmap.py`. New commands discovered from APK analysis include additional device status/control commands.
-- **5 previously disabled commands**: The `SolixMqttCommands` dataclass includes commands that were identified in the APK but marked as cloud-driven (not directly controllable via MQTT publish): `sb_3rd_party_pv_switch`, `sb_ev_charger_switch`, `sb_usage_mode`, `plug_schedule`, `plug_delayed_toggle`. These remain as stubs and could potentially be enabled for local MQTT control.
+- **Gzip decompression** (implemented): `_try_decompress()` detects gzip magic bytes (`\x1f\x8b`) and decompresses transparently. Non-gzip payloads pass through unchanged. Safe for all existing users.
+- **Port 443 TLS fallback** (implemented): `connect_client_async()` tries port 8883 first, falls back to 443 on failure. Primary port retried on each reconnect. Enables operation behind restrictive firewalls.
+- **Topic suffix logging**: 6 APK-discovered topic suffixes (`/thing/product/device`, `/ota/firmware`, `/shadow/update`, `/rule/action`, `/thing/event/post`, `/thing/property/set`) logged at debug level for future handler development.
+- **5 previously disabled commands**: The `SolixMqttCommands` dataclass includes commands identified in the APK but marked as cloud-driven: `sb_3rd_party_pv_switch`, `sb_ev_charger_switch`, `sb_usage_mode`, `plug_schedule`, `plug_delayed_toggle`. These remain as TODO stubs.
 
-### 5. Manifest Changes
+### 5. HA Integration Wiring
 
-- Added `bluetooth` to `dependencies` (for HA BLE stack)
-- Added `bleak>=0.19.0` and `bleak-retry-connector>=3.0.0` to `requirements`
-- Changed `iot_class` from `cloud_polling` to `local_polling`
+- **manifest.json**: `after_dependencies: ["bluetooth"]` (optional, not hard dependency), `bluetooth` matchers for auto-discovery, `bleak`/`bleak-retry-connector`/`cryptography` in requirements, `iot_class` remains `cloud_polling`
+- **`__init__.py`**: `_async_setup_ble()` creates BLE coordinator if Bluetooth scanners available, registers UUID-based discovery callback, graceful skip if no BLE hardware
+- **`config_flow.py`**: `async_step_bluetooth()` redirects to cloud credentials setup
+- **`ble_coordinator.py`**: Manages multiple BLE connections, adaptive polling, cloud coordinator overlay (debug stage)
 
 ---
 
@@ -231,6 +260,22 @@ Full opcode list in `solixapi/ble/tlv.py` (40+ opcodes).
 
 ---
 
+## Acknowledgments & Credits
+
+This work would not have been possible without the contributions of several open-source developers and projects:
+
+- **[@thomluther](https://github.com/thomluther)** -- Creator and maintainer of the [ha-anker-solix](https://github.com/thomluther/ha-anker-solix) integration that this branch extends. Also author of [AnkerSolixBLE](https://github.com/thomluther/AnkerSolixBLE), a telemetry-only BLE reference implementation that helped validate our data structures and byte offsets.
+
+- **[@flip-dots](https://github.com/flip-dots)** -- Author of [SolixBLE](https://github.com/flip-dots/SolixBLE), the most comprehensive BLE protocol reverse engineering for Anker Solix devices. Our TLV-based telemetry parser, scaling factors, and all 26 TLV tag definitions are directly derived from SolixBLE's implementation. Also author of [HaSolixBLE](https://github.com/flip-dots/HaSolixBLE) which provided HA-specific integration patterns (config flow, coordinator, entity structure).
+
+- **[@moag1000](https://github.com/moag1000)** -- Author of [beurer_daylight_lamps](https://github.com/moag1000/beurer_daylight_lamps), whose HA BLE integration patterns we adapted: `bleak-retry-connector` usage, exponential backoff reconnection, multi-adapter support, adaptive polling intervals, and connection health metrics.
+
+- **[bleak](https://github.com/hbldh/bleak)** (Henrik Blidh et al.) and **[bleak-retry-connector](https://github.com/bluetooth-devices/bleak-retry-connector)** (J. Nick Koston / @bdraco) -- BLE GATT communication and robust connection management libraries.
+
+- **[Eclipse Paho MQTT](https://github.com/eclipse/paho.mqtt.python)** -- MQTT client library used for the cloud pub/sub channel.
+
+---
+
 ## Dependencies
 
 - `bleak>=0.19.0` -- BLE GATT communication
@@ -243,8 +288,14 @@ Full opcode list in `solixapi/ble/tlv.py` (40+ opcodes).
 ## TODO
 
 ### Done
-- [x] BLE module: ECDH crypto, TLV encoding, client with telemetry parsing
+- [x] BLE module: ECDH crypto, TLV encoding, client with TLV-based telemetry parsing (26 fields)
 - [x] BLE connection management with exponential backoff (beurer_daylight_lamps patterns)
+- [x] BLE coordinator with adaptive polling (30s/5min/15min)
+- [x] HA config flow `async_step_bluetooth()` for BLE discovery
+- [x] HA `bluetooth` matchers in manifest for auto-discovery
+- [x] BLE coordinator wired into HA lifecycle (setup, shutdown, discovery callback)
+- [x] MQTT gzip decompression (`_try_decompress()`, magic byte detection)
+- [x] MQTT port 443 TLS fallback for restrictive networks
 - [x] Range Extender System (A7320) -- 12 endpoints defined, API methods implemented
 - [x] AI EMS profit endpoints (power_service + HES paths)
 - [x] Device income, Shelly status, site-detail-by-SN API methods
@@ -255,17 +306,19 @@ Full opcode list in `solixapi/ble/tlv.py` (40+ opcodes).
 - [x] Location Services -- 3 endpoints defined + `get_device_location`, `set_device_location`
 - [x] EV Charger Orders -- 3 endpoints defined
 - [x] Monthly/Annual Reports -- 4 endpoints defined
-- [x] Manifest updated (`bluetooth` dep, `bleak` requirements, `local_polling`)
+- [x] Manifest: `after_dependencies: ["bluetooth"]`, `bleak` requirements, `iot_class: cloud_polling`
 - [x] Utility endpoints: electrician, device bind details, strategy record, device alias, service config
+- [x] Telemetry scaling factors verified against flip-dots/SolixBLE reference
+- [x] Battery energy divisor fix (/100 -> /10, matching other energy fields)
+- [x] TLV-based parsing replacing fragile fixed byte offsets
 
 ### Pending
-- [ ] HA config flow with BLE device discovery
-- [ ] BLE coordinator with adaptive polling intervals
-- [ ] HA `bluetooth` matchers in manifest for auto-discovery
+- [ ] BLE entity platform: Create HA sensor entities from BLE telemetry data (currently BLE data only reaches debug logs via cloud coordinator overlay)
+- [ ] Cloud coordinator overlay: Write BLE data into cloud coordinator data dict for entity fallback during cloud outages
 - [ ] Local LAN fallback (`10.10.100.254` AP mode)
-- [ ] MQTT gzip decompression for compressed payloads
-- [ ] MQTT port 443 fallback for restrictive networks
 - [ ] Enable cloud-driven MQTT commands for local control
 - [ ] API methods for remaining new endpoint groups (VPP, dynamic pricing, reports, EV orders)
+- [ ] BLE config flow option to enable/disable BLE (currently auto-enabled)
 - [ ] Integration tests for BLE module
 - [ ] Integration tests for new API methods
+- [ ] Real-device validation of TLV parsing with Solarbank 2 E1600 Pro (A17C1)

@@ -1,7 +1,7 @@
 """Anker Solix BLE client for direct device communication.
 
 Handles GATT connection, ECDH negotiation, encrypted command exchange,
-and telemetry reception. Based on the SolixBLE protocol implementation.
+and telemetry reception.
 
 Connection flow:
     1. Discover devices via HA bluetooth stack or manual scan (UUID_IDENTIFIER)
@@ -11,7 +11,14 @@ Connection flow:
     5. Send/receive encrypted commands via UUID_COMMAND
     6. Receive and reassemble fragmented telemetry data
 
-Patterns adapted from beurer_daylight_lamps integration (moag1000).
+Credits:
+    - BLE protocol + TLV telemetry parsing: SolixBLE by @flip-dots
+      https://github.com/flip-dots/SolixBLE
+    - Data structure validation: AnkerSolixBLE by @thomluther
+      https://github.com/thomluther/AnkerSolixBLE
+    - Connection patterns (bleak-retry-connector, backoff): beurer_daylight_lamps by @moag1000
+      https://github.com/moag1000/beurer_daylight_lamps
+    - Endpoint discovery: Anker APK v3.18.0 reverse engineering
 """
 
 from __future__ import annotations
@@ -37,6 +44,32 @@ from . import (
     PATTERN_COMMAND,
     PATTERN_NEGOTIATION,
     PATTERN_TELEMETRY,
+    TLV_AC_POWER,
+    TLV_AC_SOCKETS,
+    TLV_BATTERY_PCT,
+    TLV_BATTERY_PCT_AGG,
+    TLV_CHARGE_POWER,
+    TLV_CHARGED_ENERGY,
+    TLV_CONSUMED_ENERGY,
+    TLV_DISCHARGE_POWER,
+    TLV_GRID_EXPORT,
+    TLV_GRID_IMPORT,
+    TLV_GRID_TO_HOME,
+    TLV_HOUSE_DEMAND,
+    TLV_OUTPUT_ENERGY,
+    TLV_POWER_OUT,
+    TLV_PV1_POWER,
+    TLV_PV2_POWER,
+    TLV_PV3_POWER,
+    TLV_PV4_POWER,
+    TLV_PV_TO_GRID,
+    TLV_PV_YIELD,
+    TLV_SERIAL,
+    TLV_SOLAR_POWER,
+    TLV_SW_VERSION,
+    TLV_SW_VERSION_CTRL,
+    TLV_SW_VERSION_EXP,
+    TLV_TEMPERATURE,
     UUID_COMMAND,
     UUID_IDENTIFIER,
     UUID_TELEMETRY,
@@ -54,17 +87,49 @@ MAX_CONNECT_ATTEMPTS = 5
 
 @dataclass
 class SolixBleDeviceInfo:
-    """Parsed telemetry data from a Solix BLE device."""
+    """Parsed telemetry data from a Solix BLE device.
 
-    serial_number: str = ""
-    battery_percent: int = -1
-    battery_temperature: float = -1.0
-    solar_power_w: float = 0.0
-    ac_power_w: float = 0.0
-    total_solar_wh: float = 0.0
-    battery_energy_wh: float = 0.0
-    total_output_wh: float = 0.0
-    discharge_power_w: float = 0.0
+    Fields map to TLV keys from the decrypted 253-byte telemetry blob.
+    Scaling factors verified against flip-dots/SolixBLE (Python, little-endian).
+    """
+
+    # Identity
+    serial_number: str = ""  # TLV key 0xa2
+
+    # Battery
+    battery_percent: int = -1  # TLV key 0xa3
+    battery_percent_aggregate: int = -1  # TLV key 0xad (avg across all batteries)
+    battery_temperature: float = -1.0  # TLV key 0xaa (signed, °C)
+    battery_charge_power_w: float = 0.0  # TLV key 0xb0 (raw/100 = W)
+    discharge_power_w: float = 0.0  # TLV key 0xb7 (raw/100 = W)
+    battery_energy_wh: float = 0.0  # TLV key 0xb2 (raw/10 = Wh)
+
+    # Solar
+    solar_power_w: float = 0.0  # TLV key 0xab (raw/10 = W, total)
+    solar_pv1_power_w: float = 0.0  # TLV key 0xca (raw/10 = W, MPPT 1)
+    solar_pv2_power_w: float = 0.0  # TLV key 0xcb (raw/10 = W, MPPT 2)
+    solar_pv3_power_w: float = 0.0  # TLV key 0xcc (raw/10 = W, MPPT 3)
+    solar_pv4_power_w: float = 0.0  # TLV key 0xcd (raw/10 = W, MPPT 4)
+    total_solar_wh: float = 0.0  # TLV key 0xb1 (raw/10 = Wh)
+
+    # Output / consumption
+    ac_power_w: float = 0.0  # TLV key 0xac (raw/10 = W)
+    ac_power_out_sockets_w: float = 0.0  # TLV key 0xc8 (raw/10 = W, pass-through)
+    power_out_w: float = 0.0  # TLV key 0xd3 (raw/10 = W)
+    total_output_wh: float = 0.0  # TLV key 0xb3 (raw/10 = Wh)
+    house_demand_w: float = 0.0  # TLV key 0xc4 (raw/10 = W)
+    consumed_energy_wh: float = 0.0  # TLV key 0xc9 (raw/10 = Wh)
+
+    # Grid
+    grid_to_home_power_w: float = 0.0  # TLV key 0xbc (raw/10 = W)
+    pv_to_grid_power_w: float = 0.0  # TLV key 0xbd (raw/10 = W)
+    grid_import_energy_wh: float = 0.0  # TLV key 0xbe (raw/10 = Wh)
+    grid_export_energy_wh: float = 0.0  # TLV key 0xbf (raw/10 = Wh)
+
+    # Firmware
+    software_version: str = ""  # TLV key 0xa6
+    software_version_controller: str = ""  # TLV key 0xa7
+    software_version_expansion: str = ""  # TLV key 0xa8
 
 
 def xor_checksum(data: bytes) -> bytes:
@@ -266,7 +331,7 @@ class SolixBleClient:
             self._state_callback(False)
         # Auto-reconnect if device is still reachable
         if self._ble_available:
-            asyncio.get_event_loop().create_task(self._auto_reconnect())
+            asyncio.get_running_loop().create_task(self._auto_reconnect())
 
     async def _auto_reconnect(self) -> None:
         """Attempt to reconnect with exponential backoff.
@@ -360,7 +425,7 @@ class SolixBleClient:
             cmd_hex = cmd.hex()
 
             if pattern_hex == PATTERN_NEGOTIATION.hex():
-                asyncio.get_event_loop().create_task(
+                asyncio.get_running_loop().create_task(
                     self._handle_negotiation_response(cmd, payload)
                 )
             elif pattern_hex == PATTERN_TELEMETRY.hex() and cmd_hex == "c402":
@@ -530,9 +595,11 @@ class SolixBleClient:
     def _parse_telemetry(self, data: bytes) -> SolixBleDeviceInfo | None:
         """Parse decrypted telemetry data into structured info.
 
-        Byte offsets are based on SolixBLE reverse engineering.
+        Uses TLV (Tag-Length-Value) parsing matching flip-dots/SolixBLE.
+        Format: [1B tag][1B length][N bytes value] with little-endian integers.
+        TLV values use begin=1 convention (first byte is type/flags, skip it).
         """
-        if len(data) < 136:
+        if len(data) < 100:
             self._logger.debug("Telemetry data too short: %d bytes", len(data))
             return None
 
@@ -540,35 +607,129 @@ class SolixBleClient:
             self._logger.debug("Unexpected telemetry message type: %02x%02x", data[8], data[9])
             return None
 
+        # Parse TLV fields from the decrypted blob
+        tlv = self._parse_telemetry_tlv(data)
+        if not tlv or TLV_SERIAL not in tlv:
+            self._logger.debug("TLV parsing failed or serial tag (0xa2) missing")
+            return None
+
         try:
-            info = SolixBleDeviceInfo()
-            info.serial_number = data[0x10 : 0x10 + 16].decode("ascii", errors="replace").rstrip("\x00")
-            info.battery_percent = data[35]
-            info.battery_temperature = float(data[73])
-
-            solar_raw = int.from_bytes(data[77:79], byteorder="little")
-            info.solar_power_w = solar_raw / 10.0
-
-            ac_raw = int.from_bytes(data[84:86], byteorder="little")
-            info.ac_power_w = ac_raw / 10.0
-
-            total_solar_raw = int.from_bytes(data[110:114], byteorder="little")
-            info.total_solar_wh = total_solar_raw / 10.0
-
-            battery_raw = int.from_bytes(data[117:121], byteorder="little")
-            info.battery_energy_wh = battery_raw / 100.0
-
-            output_raw = int.from_bytes(data[124:128], byteorder="little")
-            info.total_output_wh = output_raw / 10.0
-
-            discharge_raw = int.from_bytes(data[132:136], byteorder="little")
-            info.discharge_power_w = discharge_raw / 100.0
-
-            return info
-
+            return self._build_info_from_tlv(tlv)
         except Exception:
             self._logger.debug("Telemetry parse error", exc_info=True)
             return None
+
+    @staticmethod
+    def _parse_telemetry_tlv(data: bytes) -> dict[int, bytes] | None:
+        """Parse TLV fields from decrypted telemetry data.
+
+        Scans for the start of TLV data by locating tag 0xa2 (serial_number)
+        in the expected header region. TLV format per flip-dots/SolixBLE:
+        [1B tag][1B length][length bytes value].
+        """
+        # Find TLV start by scanning for the serial number tag (0xa2)
+        start = None
+        for i in range(10, 20):
+            if i < len(data) and data[i] == TLV_SERIAL:
+                # Next byte should be a reasonable length for serial (16-18 bytes)
+                if i + 1 < len(data) and 15 <= data[i + 1] <= 20:
+                    start = i
+                    break
+        if start is None:
+            return None
+
+        # Parse TLV triplets
+        result: dict[int, bytes] = {}
+        offset = start
+        while offset + 2 <= len(data):
+            tag = data[offset]
+            length = data[offset + 1]
+            offset += 2
+            if length == 0 or offset + length > len(data):
+                break
+            result[tag] = data[offset : offset + length]
+            offset += length
+
+        return result if result else None
+
+    def _build_info_from_tlv(self, tlv: dict[int, bytes]) -> SolixBleDeviceInfo:
+        """Build SolixBleDeviceInfo from parsed TLV fields.
+
+        TLV value convention: value[0] is a type/flags byte, actual data at value[1:].
+        Integer fields use little-endian byte order (confirmed from flip-dots source).
+        """
+        info = SolixBleDeviceInfo()
+
+        def _uint(tag: int, size: int = 2) -> int:
+            """Parse unsigned int from TLV value, skipping type byte."""
+            v = tlv.get(tag)
+            if v is None or len(v) < size + 1:
+                return 0
+            return int.from_bytes(v[1 : 1 + size], byteorder="little")
+
+        def _sint(tag: int, size: int = 2) -> int:
+            """Parse signed int from TLV value, skipping type byte."""
+            v = tlv.get(tag)
+            if v is None or len(v) < size + 1:
+                return 0
+            return int.from_bytes(v[1 : 1 + size], byteorder="little", signed=True)
+
+        def _str(tag: int) -> str:
+            """Parse string from TLV value, skipping type byte."""
+            v = tlv.get(tag)
+            if v is None or len(v) < 2:
+                return ""
+            return v[1:].decode("ascii", errors="replace").rstrip("\x00")
+
+        def _version(tag: int) -> str:
+            """Parse firmware version from TLV value (2B uint → digit-separated)."""
+            raw = _uint(tag, 2)
+            if raw == 0:
+                return ""
+            digits = str(raw)
+            return ".".join(digits)
+
+        # Identity
+        info.serial_number = _str(TLV_SERIAL)
+
+        # Battery
+        if TLV_BATTERY_PCT in tlv and len(tlv[TLV_BATTERY_PCT]) >= 2:
+            info.battery_percent = tlv[TLV_BATTERY_PCT][1]
+        if TLV_BATTERY_PCT_AGG in tlv:
+            info.battery_percent_aggregate = _uint(TLV_BATTERY_PCT_AGG, 2)
+        info.battery_temperature = float(_sint(TLV_TEMPERATURE, 2))
+        info.battery_charge_power_w = _uint(TLV_CHARGE_POWER, 2) / 100.0
+        info.discharge_power_w = _uint(TLV_DISCHARGE_POWER, 4) / 100.0
+        info.battery_energy_wh = _uint(TLV_CHARGED_ENERGY, 4) / 10.0
+
+        # Solar (total + per-MPPT)
+        info.solar_power_w = _uint(TLV_SOLAR_POWER, 2) / 10.0
+        info.solar_pv1_power_w = _uint(TLV_PV1_POWER, 2) / 10.0
+        info.solar_pv2_power_w = _uint(TLV_PV2_POWER, 2) / 10.0
+        info.solar_pv3_power_w = _uint(TLV_PV3_POWER, 2) / 10.0
+        info.solar_pv4_power_w = _uint(TLV_PV4_POWER, 2) / 10.0
+        info.total_solar_wh = _uint(TLV_PV_YIELD, 4) / 10.0
+
+        # Output / consumption
+        info.ac_power_w = _uint(TLV_AC_POWER, 2) / 10.0
+        info.ac_power_out_sockets_w = _uint(TLV_AC_SOCKETS, 2) / 10.0
+        info.power_out_w = _uint(TLV_POWER_OUT, 2) / 10.0
+        info.total_output_wh = _uint(TLV_OUTPUT_ENERGY, 4) / 10.0
+        info.house_demand_w = _uint(TLV_HOUSE_DEMAND, 2) / 10.0
+        info.consumed_energy_wh = _uint(TLV_CONSUMED_ENERGY, 4) / 10.0
+
+        # Grid
+        info.grid_to_home_power_w = _uint(TLV_GRID_TO_HOME, 2) / 10.0
+        info.pv_to_grid_power_w = _uint(TLV_PV_TO_GRID, 2) / 10.0
+        info.grid_import_energy_wh = _uint(TLV_GRID_IMPORT, 4) / 10.0
+        info.grid_export_energy_wh = _uint(TLV_GRID_EXPORT, 4) / 10.0
+
+        # Firmware versions
+        info.software_version = _version(TLV_SW_VERSION)
+        info.software_version_controller = _version(TLV_SW_VERSION_CTRL)
+        info.software_version_expansion = _version(TLV_SW_VERSION_EXP)
+
+        return info
 
     async def send_command(self, cmd: bytes, payload: bytes = b"") -> tuple[bytes, bytes] | None:
         """Send an encrypted command and wait for the response.

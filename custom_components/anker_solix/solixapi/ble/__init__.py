@@ -43,21 +43,36 @@ NEGOTIATION_COMMANDS = [
     bytes.fromhex("ff095a000300014022580bc0532a53c739adf3da7b994a7b5f221bcc16bab6392c215cb4faaf41d9d58e2c81c016e474c78eed5569147cb74a1f22ca2b3fad2e209dbbcfbdaca352034a6c479f055f68581b5f1e22348809f526"),
 ]
 
-# Timing constants
-RECONNECT_DELAY = 3
-RECONNECT_ATTEMPTS_MAX = -1  # unlimited
-DISCONNECT_TIMEOUT = 120
+# Timing constants (used by client.py negotiation flow)
 NEGOTIATION_TIMEOUT = 90
 NEGOTIATION_RESPONSE_TIMEOUT = 15
 
-# Telemetry parsing offsets (byte positions in decrypted telemetry)
-TELEMETRY_SERIAL_OFFSET = 0x10
-TELEMETRY_SERIAL_LENGTH = 16
-TELEMETRY_BATTERY_PCT_OFFSET = 35
-TELEMETRY_BATTERY_TEMP_OFFSET = 73
-TELEMETRY_SOLAR_POWER_OFFSET = 77  # 2 bytes LE, W * 10
-TELEMETRY_AC_POWER_OFFSET = 84  # 2 bytes LE, W * 10
-TELEMETRY_TOTAL_SOLAR_OFFSET = 110  # 4 bytes, Wh * 10
-TELEMETRY_BATTERY_ENERGY_OFFSET = 117  # 4 bytes, Wh * 100
-TELEMETRY_TOTAL_OUTPUT_OFFSET = 124  # 4 bytes, Wh * 10
-TELEMETRY_DISCHARGE_POWER_OFFSET = 132  # 4 bytes, W * 100
+# TLV tag keys for telemetry fields (from flip-dots/SolixBLE)
+# Format: [1B tag][1B length][N bytes value], value[0] is type/flags byte
+# Integers are little-endian in value[1:]
+TLV_SERIAL = 0xA2  # string (16 bytes after type byte)
+TLV_BATTERY_PCT = 0xA3  # uint8
+TLV_SW_VERSION = 0xA6  # uint16 → digit-separated version
+TLV_SW_VERSION_CTRL = 0xA7  # uint16
+TLV_SW_VERSION_EXP = 0xA8  # uint16
+TLV_TEMPERATURE = 0xAA  # int16 signed, °C
+TLV_SOLAR_POWER = 0xAB  # uint16, raw/10 = W
+TLV_AC_POWER = 0xAC  # uint16, raw/10 = W
+TLV_BATTERY_PCT_AGG = 0xAD  # uint16, average across batteries
+TLV_CHARGE_POWER = 0xB0  # uint16, raw/100 = W
+TLV_PV_YIELD = 0xB1  # uint32, raw/10 = Wh (raw/10000 = kWh)
+TLV_CHARGED_ENERGY = 0xB2  # uint32, raw/10 = Wh
+TLV_OUTPUT_ENERGY = 0xB3  # uint32, raw/10 = Wh
+TLV_DISCHARGE_POWER = 0xB7  # uint32, raw/100 = W
+TLV_GRID_TO_HOME = 0xBC  # uint16, raw/10 = W
+TLV_PV_TO_GRID = 0xBD  # uint16, raw/10 = W
+TLV_GRID_IMPORT = 0xBE  # uint32, raw/10 = Wh
+TLV_GRID_EXPORT = 0xBF  # uint32, raw/10 = Wh
+TLV_HOUSE_DEMAND = 0xC4  # uint16, raw/10 = W
+TLV_AC_SOCKETS = 0xC8  # uint16, raw/10 = W
+TLV_CONSUMED_ENERGY = 0xC9  # uint32, raw/10 = Wh
+TLV_PV1_POWER = 0xCA  # uint16, raw/10 = W
+TLV_PV2_POWER = 0xCB  # uint16, raw/10 = W
+TLV_PV3_POWER = 0xCC  # uint16, raw/10 = W
+TLV_PV4_POWER = 0xCD  # uint16, raw/10 = W
+TLV_POWER_OUT = 0xD3  # uint16, raw/10 = W

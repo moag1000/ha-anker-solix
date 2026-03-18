@@ -12,7 +12,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
-from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -20,6 +19,7 @@ from .const import DOMAIN, LOGGER
 from .solixapi.ble.client import SolixBleClient, SolixBleDeviceInfo
 
 if TYPE_CHECKING:
+    from homeassistant.components import bluetooth
     from bleak.backends.device import BLEDevice
 
     from .coordinator import AnkerSolixDataUpdateCoordinator
@@ -162,12 +162,29 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
             ble_overlay["solar_power"] = str(info.solar_power_w)
         if info.ac_power_w > 0:
             ble_overlay["ac_power"] = str(info.ac_power_w)
-        if info.battery_temperature >= 0:
+        if info.battery_temperature > -40.0:  # -1.0 is default/unset, valid range ~-20..60°C
             ble_overlay["battery_temperature"] = str(info.battery_temperature)
         if info.total_solar_wh > 0:
             ble_overlay["solar_energy"] = str(info.total_solar_wh)
         if info.total_output_wh > 0:
             ble_overlay["output_energy"] = str(info.total_output_wh)
+        # SB2 Pro extended fields
+        if info.grid_to_home_power_w > 0:
+            ble_overlay["grid_to_home_power"] = str(info.grid_to_home_power_w)
+        if info.pv_to_grid_power_w > 0:
+            ble_overlay["pv_to_grid_power"] = str(info.pv_to_grid_power_w)
+        if info.house_demand_w > 0:
+            ble_overlay["house_demand"] = str(info.house_demand_w)
+        if info.battery_charge_power_w > 0:
+            ble_overlay["battery_charge_power"] = str(info.battery_charge_power_w)
+        if info.discharge_power_w > 0:
+            ble_overlay["battery_discharge_power"] = str(info.discharge_power_w)
+        for i, pv_w in enumerate(
+            [info.solar_pv1_power_w, info.solar_pv2_power_w,
+             info.solar_pv3_power_w, info.solar_pv4_power_w], 1
+        ):
+            if pv_w > 0:
+                ble_overlay[f"solar_pv{i}_power"] = str(pv_w)
 
         if not ble_overlay:
             return

@@ -800,3 +800,11 @@ Based on APK analysis and cross-referencing device capabilities, the following M
 > **Last updated:** 2026-03-18
 > **Source file:** `custom_components/anker_solix/solixapi/apitypes.py`
 > **Branch:** `feat/ble-and-local-features`
+
+---
+
+## Credits
+
+- **[@thomluther](https://github.com/thomluther)** -- Original [ha-anker-solix](https://github.com/thomluther/ha-anker-solix) API implementation that all these additions build upon
+- **Anker App v3.18.0 APK** -- Source of all newly discovered endpoint URLs via `libapp.so` decompilation
+- **[@flip-dots](https://github.com/flip-dots)** -- [SolixBLE](https://github.com/flip-dots/SolixBLE) project provided cross-reference for MQTT topic structures and BLE command-to-API mappings

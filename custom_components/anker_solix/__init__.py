@@ -203,9 +203,13 @@ async def _async_setup_ble(
         LOGGER.debug("Bluetooth component not available, skipping BLE setup")
         return
 
-    # Check if bluetooth integration is actually loaded
-    if not hass.data.get("bluetooth_manager"):
-        LOGGER.debug("Bluetooth manager not available, skipping BLE setup")
+    # Check if bluetooth integration is actually loaded and has scanners
+    try:
+        if bluetooth.async_scanner_count(hass) < 1:
+            LOGGER.debug("No Bluetooth scanners available, skipping BLE setup")
+            return
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("Bluetooth availability check failed, skipping BLE setup")
         return
 
     from .ble_coordinator import AnkerSolixBleCoordinator  # noqa: PLC0415
@@ -354,10 +358,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_API_REQUEST,
         ]:
             hass.services.async_remove(DOMAIN, action)
-    # Shut down BLE coordinator if running
-    if ble_coordinator := hass.data[DOMAIN].get(BLE_COORDINATOR):
-        await ble_coordinator.async_shutdown()
-        hass.data[DOMAIN].pop(BLE_COORDINATOR, None)
+    # Shut down BLE coordinator only when the last config entry is being unloaded
+    if not other_entries:
+        if ble_coordinator := hass.data[DOMAIN].get(BLE_COORDINATOR):
+            await ble_coordinator.async_shutdown()
+            hass.data[DOMAIN].pop(BLE_COORDINATOR, None)
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
     return unloaded

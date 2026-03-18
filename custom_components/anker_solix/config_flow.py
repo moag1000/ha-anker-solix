@@ -125,7 +125,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         return AnkerSolixOptionsFlowHandler(config_entry)
 
     async def async_step_bluetooth(
-        self, discovery_info: config_entries.ConfigFlowResult | Any = None
+        self, discovery_info: Any = None,
     ) -> config_entries.FlowResult:
         """Handle BLE device discovery.
 
@@ -136,6 +136,8 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         the integration is configured.
 
         Data origin: UUID matcher from Anker APK v3.18.0 reverse engineering.
+        Note: discovery_info is BluetoothServiceInfoBleak but typed as Any
+        to avoid hard dependency on homeassistant.components.bluetooth.
         """
         # BLE devices need cloud credentials too, so redirect to user flow
         # The BLE coordinator will auto-discover the device once set up
