@@ -311,13 +311,13 @@ This work would not have been possible without the contributions of several open
 - [x] Telemetry scaling factors verified against flip-dots/SolixBLE reference
 - [x] Battery energy divisor fix (/100 -> /10, matching other energy fields)
 - [x] TLV-based parsing replacing fragile fixed byte offsets
+- [x] Cloud coordinator overlay: BLE data written into cloud coordinator data dict for entity fallback during cloud outages
+- [x] API methods for VPP/Evergen (5), Dynamic Pricing (5), EV Orders (3), Reports (4), MI Status (1) — total 18 new methods
 
 ### Pending
-- [ ] BLE entity platform: Create HA sensor entities from BLE telemetry data (currently BLE data only reaches debug logs via cloud coordinator overlay)
-- [ ] Cloud coordinator overlay: Write BLE data into cloud coordinator data dict for entity fallback during cloud outages
+- [ ] BLE entity platform: Create dedicated HA sensor entities from BLE telemetry (currently BLE supplements existing cloud entities via overlay)
 - [ ] Local LAN fallback (`10.10.100.254` AP mode)
 - [ ] Enable cloud-driven MQTT commands for local control
-- [ ] API methods for remaining new endpoint groups (VPP, dynamic pricing, reports, EV orders)
 - [ ] BLE config flow option to enable/disable BLE (currently auto-enabled)
 - [ ] Integration tests for BLE module
 - [ ] Integration tests for new API methods
