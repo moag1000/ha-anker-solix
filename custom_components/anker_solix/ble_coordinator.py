@@ -140,51 +140,58 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
         self.async_set_updated_data(self.telemetry_data)
 
     def _push_to_cloud_coordinator(self, info: SolixBleDeviceInfo) -> None:
-        """Build BLE overlay data for potential cloud coordinator integration.
+        """Write BLE telemetry into cloud coordinator data for entity fallback.
 
-        Maps BLE telemetry fields to the same keys the cloud API uses.
-        Currently logs at debug level only. Full integration into cloud
-        coordinator data (to supplement entities during cloud outages)
-        requires matching device serial numbers to coordinator data keys.
+        Maps BLE telemetry fields to the same dict keys that cloud API uses
+        (verified against sensor.py DEVICE_SENSORS json_key values).
+        When the cloud API is unavailable, existing HA entities will show
+        BLE-sourced data instead of going unavailable.
 
-        TODO: Once device SN mapping is established, write overlay into
-        self._cloud_coordinator.data[sn] to enable entity fallback.
+        Data is written into self._cloud_coordinator.data[serial_number]
+        which is a dict keyed by device serial number.
         """
         if not self._cloud_coordinator or not self._cloud_coordinator.data:
             return
 
-        # Build overlay dict from BLE telemetry
-        # Field names from SolixBleDeviceInfo (ble/client.py)
+        sn = info.serial_number
+        if not sn or sn not in self._cloud_coordinator.data:
+            LOGGER.debug(
+                "BLE device SN %s not found in cloud coordinator data (known: %s)",
+                sn,
+                list(self._cloud_coordinator.data.keys())[:5],
+            )
+            return
+
+        # Build overlay using exact keys from sensor.py DEVICE_SENSORS
         ble_overlay: dict[str, str | bool] = {}
         if info.battery_percent >= 0:
             ble_overlay["battery_soc"] = str(info.battery_percent)
         if info.solar_power_w > 0:
-            ble_overlay["solar_power"] = str(info.solar_power_w)
+            ble_overlay["solar_power_1"] = str(info.solar_power_w)
         if info.ac_power_w > 0:
             ble_overlay["ac_power"] = str(info.ac_power_w)
-        if info.battery_temperature > -40.0:  # -1.0 is default/unset, valid range ~-20..60°C
+        if info.battery_temperature > -40.0:
             ble_overlay["battery_temperature"] = str(info.battery_temperature)
-        if info.total_solar_wh > 0:
-            ble_overlay["solar_energy"] = str(info.total_solar_wh)
-        if info.total_output_wh > 0:
-            ble_overlay["output_energy"] = str(info.total_output_wh)
-        # SB2 Pro extended fields
-        if info.grid_to_home_power_w > 0:
-            ble_overlay["grid_to_home_power"] = str(info.grid_to_home_power_w)
-        if info.pv_to_grid_power_w > 0:
-            ble_overlay["pv_to_grid_power"] = str(info.pv_to_grid_power_w)
-        if info.house_demand_w > 0:
-            ble_overlay["house_demand"] = str(info.house_demand_w)
-        if info.battery_charge_power_w > 0:
-            ble_overlay["battery_charge_power"] = str(info.battery_charge_power_w)
         if info.discharge_power_w > 0:
-            ble_overlay["battery_discharge_power"] = str(info.discharge_power_w)
+            ble_overlay["battery_power"] = str(info.discharge_power_w)
+        if info.battery_charge_power_w > 0:
+            ble_overlay["charge_power"] = str(info.battery_charge_power_w)
+        # Per-MPPT solar (keys match sensor.py: solar_power_1..4)
         for i, pv_w in enumerate(
             [info.solar_pv1_power_w, info.solar_pv2_power_w,
              info.solar_pv3_power_w, info.solar_pv4_power_w], 1
         ):
             if pv_w > 0:
-                ble_overlay[f"solar_pv{i}_power"] = str(pv_w)
+                ble_overlay[f"solar_power_{i}"] = str(pv_w)
+        # SB2 Pro grid/consumption fields
+        if info.grid_to_home_power_w > 0:
+            ble_overlay["grid_to_home_power"] = str(info.grid_to_home_power_w)
+        if info.pv_to_grid_power_w > 0:
+            ble_overlay["pv_to_grid_power"] = str(info.pv_to_grid_power_w)
+        if info.house_demand_w > 0:
+            ble_overlay["home_load_power"] = str(info.house_demand_w)
+        if info.power_out_w > 0:
+            ble_overlay["output_power"] = str(info.power_out_w)
 
         if not ble_overlay:
             return
@@ -193,10 +200,12 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
         ble_overlay["_ble_source"] = True
         ble_overlay["_ble_timestamp"] = datetime.now().astimezone().isoformat()
 
+        # Write into cloud coordinator data dict
+        self._cloud_coordinator.data[sn].update(ble_overlay)
         LOGGER.debug(
-            "BLE overlay for SN %s: %s",
-            info.serial_number,
-            ble_overlay,
+            "BLE overlay written for SN %s (%d fields)",
+            sn,
+            len(ble_overlay) - 2,  # exclude _ble_source and _ble_timestamp
         )
 
     async def _async_update_data(self) -> dict[str, SolixBleDeviceInfo]:

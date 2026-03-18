@@ -3057,6 +3057,371 @@ class AnkerSolixApi(AnkerSolixBaseApi):
             )
         return resp.get("data") or {}
 
+    async def vpp_get_enrollment_status(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get VPP enrollment status for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['vpp_get_enrollment_status']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["vpp_get_enrollment_status"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def vpp_enrollment_verification(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+        **kwargs,
+    ) -> dict:
+        """Verify VPP enrollment for a site. APK v3.18.0."""
+        data = {"site_id": site_id, **kwargs}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['vpp_enrollment_verification']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["vpp_enrollment_verification"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def vpp_get_policy(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get VPP policy details for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['vpp_get_policy']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["vpp_get_policy"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def vpp_dispatch_control(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+        **kwargs,
+    ) -> dict:
+        """Send VPP dispatch control command for a site. APK v3.18.0."""
+        data = {"site_id": site_id, **kwargs}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['vpp_dispatch_control']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["vpp_dispatch_control"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def vpp_get_dispatch_history(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get VPP dispatch history for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['vpp_get_dispatch_history']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["vpp_get_dispatch_history"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_dynamic_price_plan(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get dynamic price plan for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_dynamic_price_plan']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_dynamic_price_plan"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def set_dynamic_price_plan(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+        **kwargs,
+    ) -> dict:
+        """Set dynamic price plan for a site. APK v3.18.0."""
+        data = {"site_id": site_id, **kwargs}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['set_dynamic_price_plan']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["set_dynamic_price_plan"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_dynamic_price_rates(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get dynamic price rates for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_dynamic_price_rates']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_dynamic_price_rates"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def check_dynamic_price_adjust(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Check dynamic price adjustment status for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['check_dynamic_price_adjust']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["check_dynamic_price_adjust"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_dynamic_price_provider_list(
+        self,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get list of dynamic price providers. APK v3.18.0."""
+        data = {}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_dynamic_price_provider_list']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_dynamic_price_provider_list"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_charging_order_list(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get all charging orders for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_charging_order_list']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_charging_order_list"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_charging_order_detail(
+        self,
+        order_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get charging order detail by order ID. APK v3.18.0."""
+        data = {"order_id": order_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_charging_order_detail']}_{order_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_charging_order_detail"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def export_charge_order(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+        **kwargs,
+    ) -> dict:
+        """Export charge order data for a site. APK v3.18.0."""
+        data = {"site_id": site_id, **kwargs}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['export_charge_order']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["export_charge_order"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_annual_report(
+        self,
+        site_id: str,
+        year: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get annual report for a site and year. APK v3.18.0."""
+        data = {"site_id": site_id, "year": year}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_annual_report']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_annual_report"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_monthly_report_list(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get list of monthly reports for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_monthly_report_list']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_monthly_report_list"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_monthly_report_configs(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get monthly report configuration for a site. APK v3.18.0."""
+        data = {"site_id": site_id}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_monthly_report_configs']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_monthly_report_configs"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def set_monthly_report_configs(
+        self,
+        site_id: str,
+        fromFile: bool = False,
+        **kwargs,
+    ) -> dict:
+        """Set monthly report configuration for a site. APK v3.18.0."""
+        data = {"site_id": site_id, **kwargs}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['set_monthly_report_configs']}_{site_id}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["set_monthly_report_configs"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_mi_status(
+        self,
+        device_sn: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get micro inverter status. APK v3.18.0."""
+        data = {"device_sn": device_sn}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_mi_status']}_{device_sn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_mi_status"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
     async def get_device_pv_status(
         self, devices: str | list[str], fromFile: bool = False
     ) -> dict:
