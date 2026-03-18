@@ -14,6 +14,7 @@ from .apibase import AnkerSolixBaseApi
 from .apitypes import (
     API_ENDPOINTS,
     API_FILEPREFIXES,
+    API_HES_SVC_ENDPOINTS,
     PowerdockStatus,
     SmartmeterStatus,
     SolarbankAiemsRuntimeStatus,
@@ -2048,6 +2049,1013 @@ class AnkerSolixApi(AnkerSolixBaseApi):
             )
             self._update_site(siteId=siteId, details={"ai_ems_runtime": mydata})
         return data
+
+    async def get_ai_ems_profit(
+        self,
+        siteId: str,
+        profit_type: str = "grid",
+        start_time: str = "00:00",
+        end_time: str = "24:00",
+        fromFile: bool = False,
+    ) -> dict:
+        """Get AI EMS profit data for a site.
+
+        Reverse-engineered from Anker app v3.18.0. Returns profit/savings
+        data for the AI energy management system.
+
+        Example data (structure may vary by type):
+        {"profit": 1.23, "unit": "EUR", ...}
+
+        Args:
+            siteId: The site ID.
+            profit_type: Profit type (e.g. "grid"). Exact values still being mapped.
+            start_time: Start time filter (default "00:00").
+            end_time: End time filter (default "24:00").
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {
+            "site_id": siteId,
+            "start_time": start_time,
+            "end_time": end_time,
+            "type": profit_type,
+        }
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_ai_ems_profit']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_ai_ems_profit"], json=data
+            )
+        data = resp.get("data") or {}
+        if data:
+            self._update_site(siteId=siteId, details={"ai_ems_profit": data})
+        return data
+
+    async def get_device_income(
+        self,
+        deviceSn: str,
+        start_time: str = "00:00",
+        fromFile: bool = False,
+    ) -> dict:
+        """Get income/savings data for a specific device.
+
+        Reverse-engineered from Anker app v3.18.0. Returns monetary savings
+        data for the device (e.g. from solar generation).
+
+        Example data:
+        {"income": 12.34, "unit": "EUR", ...}
+
+        Args:
+            deviceSn: Device serial number.
+            start_time: Start time filter (default "00:00").
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"device_sn": deviceSn, "start_time": start_time}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_device_income']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_device_income"], json=data
+            )
+        data = resp.get("data") or {}
+        if data:
+            self._update_dev({"device_sn": deviceSn, "income": data})
+        return data
+
+    async def get_shelly_status(
+        self,
+        token: str = "",
+        fromFile: bool = False,
+    ) -> dict:
+        """Get Shelly device status via Anker cloud API.
+
+        Reverse-engineered from Anker app v3.18.0. Requires a valid
+        operational token (obtained via get_token_by_userid or similar).
+
+        Args:
+            token: Authentication token for the Shelly API endpoint.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"token": token}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_shelly_status']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_shelly_status"], json=data
+            )
+        return resp.get("data") or {}
+
+    async def get_extender_system_list(
+        self,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get list of all range extender systems (A7320).
+
+        Reverse-engineered from Anker APK. Returns all configured range
+        extender systems for the account.
+
+        Args:
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_extender_system_list']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_extender_system_list"], json=data
+            )
+        return resp.get("data") or {}
+
+    async def get_extender_system_detail(
+        self,
+        systemId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get detail for one range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Returns detailed information
+        for a specific range extender system.
+
+        Args:
+            systemId: The range extender system ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_extender_system_detail']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_extender_system_detail"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_site_detail_by_sn(
+        self,
+        deviceSn: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Reverse lookup site details by device serial number.
+
+        Reverse-engineered from Anker APK. Returns site detail for the
+        site that contains the given device SN.
+
+        Args:
+            deviceSn: Device serial number to look up.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"sn": deviceSn}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_site_detail_by_sn']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_site_detail_by_sn"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def hes_get_aiems_profit(
+        self,
+        siteId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get AI EMS profit data via HES charging service path.
+
+        Reverse-engineered from Anker APK. Returns AI energy management
+        profit/savings data through the HES service endpoint.
+
+        Args:
+            siteId: The site ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"siteId": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['hes_get_aiems_profit']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_HES_SVC_ENDPOINTS["get_aiems_profit"],
+                json=data,
+            )
+        data = resp.get("data") or {}
+        if data:
+            self._update_site(siteId=siteId, details={"hes_aiems_profit": data})
+        return data
+
+    async def update_extender_system_strategy(
+        self,
+        systemId: str,
+        strategy: dict | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Update strategy for a range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Updates the energy management
+        strategy for a specific range extender system.
+
+        Args:
+            systemId: The range extender system ID.
+            strategy: Strategy configuration dict (keys/values still being mapped).
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId}
+        if strategy:
+            data.update(strategy)
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['update_extender_system_strategy']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["update_extender_system_strategy"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_extender_system_cumulative_data(
+        self,
+        systemId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get cumulative energy data for a range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Returns cumulative energy
+        production/consumption data for a specific range extender system.
+
+        Args:
+            systemId: The range extender system ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_extender_system_cumulative_data']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_extender_system_cumulative_data"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def set_extender_system_cumulative_data(
+        self,
+        systemId: str,
+        cumulative_data: dict | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Set cumulative data for a range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Sets/updates the cumulative
+        energy data for a specific range extender system.
+
+        Args:
+            systemId: The range extender system ID.
+            cumulative_data: Cumulative data dict to set (keys/values still being mapped).
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId}
+        if cumulative_data:
+            data.update(cumulative_data)
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['set_extender_system_cumulative_data']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["set_extender_system_cumulative_data"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def set_extender_system_name(
+        self,
+        systemId: str,
+        name: str = "",
+        fromFile: bool = False,
+    ) -> dict:
+        """Set name for a range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Updates the display name
+        of a specific range extender system.
+
+        Args:
+            systemId: The range extender system ID.
+            name: The new name to set for the system.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId, "name": name}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['set_extender_system_name']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["set_extender_system_name"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def add_extender_system(
+        self,
+        system_data: dict | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Add a new range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Creates a new range extender
+        system configuration.
+
+        Args:
+            system_data: System configuration dict (keys/values still being mapped).
+            fromFile: Load from test file instead of API.
+
+        """
+        data = system_data or {}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['add_extender_system']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["add_extender_system"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def del_extender_system(
+        self,
+        systemId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Delete a range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Removes a range extender
+        system configuration.
+
+        Args:
+            systemId: The range extender system ID to delete.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['del_extender_system']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["del_extender_system"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def add_extender_system_device_list(
+        self,
+        systemId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """List devices that can be added to a range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Queries available devices that
+        can be added to a specific range extender system.
+
+        Args:
+            systemId: The range extender system ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['add_extender_system_device_list']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["add_extender_system_device_list"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def batch_add_extender_system_device(
+        self,
+        systemId: str,
+        device_sns: list | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Batch add devices to a range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Adds multiple devices to a
+        specific range extender system in one request.
+
+        Args:
+            systemId: The range extender system ID.
+            device_sns: List of device serial numbers to add.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId, "device_sns": device_sns or []}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['batch_add_extender_system_device']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["batch_add_extender_system_device"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def batch_del_extender_system_device(
+        self,
+        systemId: str,
+        device_sns: list | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Batch remove devices from a range extender system (A7320).
+
+        Reverse-engineered from Anker APK. Removes multiple devices from a
+        specific range extender system in one request.
+
+        Args:
+            systemId: The range extender system ID.
+            device_sns: List of device serial numbers to remove.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId, "device_sns": device_sns or []}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['batch_del_extender_system_device']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["batch_del_extender_system_device"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_extender_system_pn_ota(
+        self,
+        systemId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get OTA info for range extender system devices (A7320).
+
+        Reverse-engineered from Anker APK. Returns firmware update
+        information for devices in a range extender system.
+
+        Args:
+            systemId: The range extender system ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"system_id": systemId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_extender_system_pn_ota']}_{systemId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_extender_system_pn_ota"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_all_service_config(
+        self,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get all service configuration.
+
+        Reverse-engineered from Anker APK. Returns the complete service
+        configuration for the account.
+
+        Args:
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_all_service_config']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_all_service_config"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_message_sn_list(
+        self,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get list of message-enabled device serial numbers.
+
+        Reverse-engineered from Anker APK. Returns serial numbers of
+        devices that have messaging capabilities enabled.
+
+        Args:
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_message_sn_list']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_message_sn_list"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_device_location(
+        self,
+        identifierId: str,
+        identifierType: str = "",
+        businessType: str = "",
+        fromFile: bool = False,
+    ) -> dict:
+        """Get device location (longitude, latitude, country_code, etc.).
+
+        Reverse-engineered from Anker APK. Returns geographical location
+        data for a device, used for weather-based features.
+
+        Args:
+            identifierId: The identifier ID (e.g. site or device ID).
+            identifierType: Type of identifier (exact values still being mapped).
+            businessType: Business type context (exact values still being mapped).
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {
+            "identifier_id": identifierId,
+            "identifier_type": identifierType,
+            "business_type": businessType,
+        }
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_device_location']}_{identifierId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_device_location"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def set_device_location(
+        self,
+        identifierId: str,
+        location: dict | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Set device location.
+
+        Reverse-engineered from Anker APK. Sets geographical location
+        data for a device, used for weather-based features.
+
+        Args:
+            identifierId: The identifier ID (e.g. site or device ID).
+            location: Location data dict (e.g. longitude, latitude, country_code).
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"identifier_id": identifierId}
+        if location:
+            data.update(location)
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['set_device_location']}_{identifierId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["set_device_location"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def check_location_support(
+        self,
+        identifierId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Check if location is supported for a device.
+
+        Reverse-engineered from Anker APK. Checks whether location-based
+        features are supported for the given identifier.
+
+        Args:
+            identifierId: The identifier ID (e.g. site or device ID).
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"identifier_id": identifierId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['check_location_support']}_{identifierId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["check_location_support"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def add_electrician(
+        self,
+        siteId: str,
+        electrician_data: dict | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Add electrician/installer to a site.
+
+        Reverse-engineered from Anker APK. Associates an electrician or
+        installer with a specific site for service management.
+
+        Args:
+            siteId: The site ID.
+            electrician_data: Electrician info dict (keys/values still being mapped).
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"site_id": siteId}
+        if electrician_data:
+            data.update(electrician_data)
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['add_electrician']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["add_electrician"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_electrician(
+        self,
+        siteId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get electrician/installer info for a site.
+
+        Reverse-engineered from Anker APK. Returns the electrician or
+        installer information associated with a specific site.
+
+        Args:
+            siteId: The site ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"site_id": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_electrician']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_electrician"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_device_bind_details(
+        self,
+        deviceSn: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get device binding details.
+
+        Reverse-engineered from Anker APK. Returns binding/association
+        details for a specific device.
+
+        Args:
+            deviceSn: Device serial number.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"device_sn": deviceSn}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_device_bind_details']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_device_bind_details"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_strategy_last_record(
+        self,
+        deviceSn: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get last strategy record for a device.
+
+        Reverse-engineered from Anker APK. Returns the most recent
+        strategy/schedule record applied to a specific device.
+
+        Args:
+            deviceSn: Device serial number.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"device_sn": deviceSn}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_strategy_last_record']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_strategy_last_record"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def site_data_exported(
+        self,
+        siteId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Export site data.
+
+        Reverse-engineered from Anker APK. Triggers or retrieves an
+        export of all data for a specific site.
+
+        Args:
+            siteId: The site ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"site_id": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['site_data_exported']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["site_data_exported"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def batch_check_update(
+        self,
+        device_sns: list | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Batch check for firmware updates.
+
+        Reverse-engineered from Anker APK. Checks multiple devices for
+        available firmware updates in one request.
+
+        Args:
+            device_sns: List of device serial numbers to check.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"device_sns": device_sns or []}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['batch_check_update']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["batch_check_update"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def relate_device(
+        self,
+        deviceSn: str,
+        relation_data: dict | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Relate/bind a device.
+
+        Reverse-engineered from Anker APK. Creates a relationship or
+        binding between a device and another entity.
+
+        Args:
+            deviceSn: Device serial number.
+            relation_data: Relation configuration dict (keys/values still being mapped).
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"device_sn": deviceSn}
+        if relation_data:
+            data.update(relation_data)
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['relate_device']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["relate_device"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_shared_device_relation(
+        self,
+        deviceSn: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get shared device relation details.
+
+        Reverse-engineered from Anker APK. Returns sharing/relation
+        details for a specific device.
+
+        Args:
+            deviceSn: Device serial number.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"device_sn": deviceSn}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_shared_device_relation']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["get_shared_device_relation"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def update_device_alias(
+        self,
+        deviceSn: str,
+        alias_name: str = "",
+        fromFile: bool = False,
+    ) -> dict:
+        """Update device alias name.
+
+        Reverse-engineered from Anker APK. Changes the display alias
+        name for a specific device.
+
+        Args:
+            deviceSn: Device serial number.
+            alias_name: The new alias name for the device.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"device_sn": deviceSn, "alias_name": alias_name}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['update_device_alias']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_ENDPOINTS["update_device_alias"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def hes_authorize_aiems(
+        self,
+        siteId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Authorize AI EMS for a site via HES service path.
+
+        Reverse-engineered from Anker APK. Authorizes the AI energy
+        management system for a specific site through the HES endpoint.
+
+        Args:
+            siteId: The site ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"siteId": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['hes_authorize_aiems']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_HES_SVC_ENDPOINTS["authorize_aiems"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def hes_enable_aiems_mode4(
+        self,
+        siteId: str,
+        fromFile: bool = False,
+    ) -> dict:
+        """Enable AI EMS mode 4 via HES service path.
+
+        Reverse-engineered from Anker APK. Enables AI energy management
+        system mode 4 for a specific site through the HES endpoint.
+
+        Args:
+            siteId: The site ID.
+            fromFile: Load from test file instead of API.
+
+        """
+        data = {"siteId": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['hes_enable_aiems_mode4']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_HES_SVC_ENDPOINTS["enable_aiems_mode4"],
+                json=data,
+            )
+        return resp.get("data") or {}
 
     async def get_device_pv_status(
         self, devices: str | list[str], fromFile: bool = False

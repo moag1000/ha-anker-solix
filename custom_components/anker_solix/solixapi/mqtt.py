@@ -6,6 +6,7 @@ from collections.abc import Callable
 import contextlib
 from datetime import datetime, timedelta
 from functools import partial
+import gzip
 import json
 import os
 from pathlib import Path
@@ -70,6 +71,31 @@ class AnkerSolixMqttSession:
         # Variable to exchange MID for connections
         self.mids: dict = {}
         self.testdir: str = self.apisession.testDir()
+        # Known MQTT topic suffixes handled by the Anker APK v3.18.0.
+        # Suffixes not yet handled with dedicated logic are logged at debug level.
+        self._known_topic_suffixes: dict[str, str] = {
+            "ai_ems_state": "AI EMS state",
+            "auto_disaster_state": "Auto Disaster Preparedness state",
+            "device_config_state": "Device config state",
+            "self_check_completed": "Self-check completed",
+            "fault_info": "Fault info",
+            "online_offline": "Device online/offline event",
+        }
+
+    @staticmethod
+    def _try_decompress(payload: bytes) -> bytes:
+        """Try to decompress gzip payload, return original if not compressed.
+
+        The Anker APK v3.18.0 MqttDecompressionUtil transparently decompresses
+        gzip-compressed MQTT payloads before JSON parsing. Some newer devices
+        send gzip-compressed messages.
+        """
+        if payload[:2] == b"\x1f\x8b":  # gzip magic bytes
+            try:
+                return gzip.decompress(payload)
+            except Exception:  # noqa: BLE001
+                pass
+        return payload
 
     def on_connect(
         self,
@@ -120,8 +146,10 @@ class AnkerSolixMqttSession:
         """Define callback when a PUBLISH message is received from the server."""
         # update mqtt stats
         self.mqtt_stats.add_bytes(count=len(msg.payload))
+        # Transparently decompress gzip-compressed payloads (APK v3.18.0 MqttDecompressionUtil)
+        raw_payload = self._try_decompress(msg.payload)
         # default MQTT payload decode is UTF-8
-        message = json.loads(msg.payload.decode())
+        message = json.loads(raw_payload.decode())
         # Extract timestamp field from expected dictionary in message
         timestamp = datetime.fromtimestamp(
             (message.get("head") or {}).get("timestamp")
@@ -152,6 +180,17 @@ class AnkerSolixMqttSession:
             message,
             msg.topic,
         )
+        # Log known but unhandled topic suffixes discovered in APK v3.18.0
+        topic_suffix = str(msg.topic).rsplit("/", maxsplit=1)[-1]
+        if topic_suffix in self._known_topic_suffixes:
+            self._logger.debug(
+                "Api %s MQTT session received %s message from device %s (%s): %s",
+                self.apisession.nickname,
+                self._known_topic_suffixes[topic_suffix],
+                device_sn,
+                model,
+                str(payload),
+            )
         extracted_values = {}
         # Update data stats
         if isinstance(data, bytes):
@@ -466,26 +505,54 @@ class AnkerSolixMqttSession:
         return None
 
     async def connect_client_async(self, keepalive: int = 60) -> mqtt.Client | None:
-        """Connect MQTT client, it will optionally being created if none configured yet."""
+        """Connect MQTT client, it will optionally being created if none configured yet.
+
+        Attempts connection on port 8883 (TLS) first. If that fails, falls back
+        to port 443 as discovered in Anker APK v3.18.0 connection logic.
+        """
         if not (self.client or await self.create_client()):
             return None
-        if not self.client.is_connected():
-            # Stop any previous thread before starting new one
-            self.client.loop_stop()
-            # Use Non blocking connect with loop_start
-            self.client.connect_async(
-                host=self.host, port=self.port, keepalive=keepalive
-            )
-            # Start the loop to process network traffic and callbacks
-            self.client.loop_start()
-        # Wait briefly for the client to establish the connection
-        # Paho's connect_async is non-blocking; some servers are fast but we still
-        # need to wait until client.is_connected() becomes True before returning.
-        interval = 0.1
-        waited = 0.0
-        while not self.client.is_connected() and waited < self.client.connect_timeout:
-            await asyncio.sleep(interval)
-            waited += interval
+        # Port sequence: primary 8883 (TLS), fallback 443 (APK v3.18.0)
+        ports_to_try = [self.port]
+        if self.port == 8883:
+            ports_to_try.append(443)
+        for port in ports_to_try:
+            if not self.client.is_connected():
+                # Stop any previous thread before starting new one
+                self.client.loop_stop()
+                # Use Non blocking connect with loop_start
+                self.client.connect_async(
+                    host=self.host, port=port, keepalive=keepalive
+                )
+                # Start the loop to process network traffic and callbacks
+                self.client.loop_start()
+                # Wait briefly for the client to establish the connection
+                # Paho's connect_async is non-blocking; some servers are fast but we still
+                # need to wait until client.is_connected() becomes True before returning.
+                interval = 0.1
+                waited = 0.0
+                while (
+                    not self.client.is_connected()
+                    and waited < self.client.connect_timeout
+                ):
+                    await asyncio.sleep(interval)
+                    waited += interval
+                if self.client.is_connected():
+                    if port != self.port:
+                        self._logger.info(
+                            "Api %s MQTT session connected on fallback port %s after port %s failed",
+                            self.apisession.nickname,
+                            port,
+                            self.port,
+                        )
+                    break
+                if port != ports_to_try[-1]:
+                    self._logger.warning(
+                        "Api %s MQTT session failed to connect on port %s, trying fallback port %s",
+                        self.apisession.nickname,
+                        port,
+                        ports_to_try[ports_to_try.index(port) + 1],
+                    )
         return self.client
 
     def is_connected(self) -> bool:

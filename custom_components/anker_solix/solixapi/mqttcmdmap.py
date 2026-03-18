@@ -107,10 +107,26 @@ class SolixMqttCommands:
     sb_light_mode_select: str = "sb_light_mode_select"
     sb_disable_grid_export_switch: str = "sb_disable_grid_export_switch"
     sb_device_timeout: str = "sb_device_timeout"
+    # TODO(APK v3.18.0): sb_usage_mode can be enabled with MQTT command support.
+    # The APK sends this directly via MQTT for mode changes. Currently disabled because
+    # the field patterns vary per mode with the same command message type, making generic
+    # encoding difficult. Needs per-mode field mapping to enable.
     sb_usage_mode: str = "sb_usage_mode"  # Not supported, uses various field patterns per mode with same command message
+    # TODO(APK v3.18.0): sb_3rd_party_pv_switch is sent via MQTT in the APK. Currently
+    # driven through cloud API. Can be enabled once the corresponding local MQTT command
+    # flow is validated and cloud API dependency is removed.
     sb_3rd_party_pv_switch: str = "sb_3rd_party_pv_switch"  # Driven through cloud
+    # TODO(APK v3.18.0): sb_ev_charger_switch is sent via MQTT in the APK. Currently
+    # driven through cloud API. Can be enabled once the corresponding local MQTT command
+    # flow is validated and cloud API dependency is removed.
     sb_ev_charger_switch: str = "sb_ev_charger_switch"  # Driven through cloud
+    # TODO(APK v3.18.0): plug_schedule command schema is defined but incomplete.
+    # The APK uses this to set plug on/off schedules via MQTT. Can be enabled once
+    # the full field mapping (a2-a6) is reverse-engineered and validated.
     plug_schedule: str = "plug_schedule"
+    # TODO(APK v3.18.0): plug_delayed_toggle command schema is defined but incomplete.
+    # The APK uses this to set delayed on/off toggles via MQTT. Can be enabled once
+    # the delay time encoding (3-byte seconds:minutes:hours) is fully validated.
     plug_delayed_toggle: str = "plug_delayed_toggle"
 
     device_power_mode: str = "device_power_mode"

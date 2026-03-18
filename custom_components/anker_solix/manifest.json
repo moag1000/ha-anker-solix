@@ -5,15 +5,22 @@
   "codeowners": [
     "@thomluther"
   ],
+  "bluetooth": [
+    {
+      "service_uuid": "0000ff09-0000-1000-8000-00805f9b34fb"
+    }
+  ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["bluetooth"],
   "documentation": "https://github.com/thomluther/ha-anker-solix",
   "integration_type": "hub",
-  "iot_class": "cloud_polling",
+  "iot_class": "local_polling",
   "issue_tracker": "https://github.com/thomluther/ha-anker-solix/issues",
   "requirements": [
     "aiohttp>=3.10.11",
     "aiofiles>=23.2.0",
+    "bleak>=0.19.0",
+    "bleak-retry-connector>=3.0.0",
     "cryptography>=3.4.8",
     "paho-mqtt>=2.1.0"
   ],

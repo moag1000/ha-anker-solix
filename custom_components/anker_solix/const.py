@@ -66,6 +66,11 @@ IMAGEFOLDER: Final[str] = "images"
 EXPORTFOLDER: Final[str] = "exports"
 MQTT_OVERLAY: Final[str] = "mqtt_overlay"
 
+# BLE settings
+CONF_BLE_OPTIONS: Final[str] = "ble_options"
+CONF_BLE_USAGE: Final[str] = "ble_usage"
+DEFAULT_BLE_USAGE: Final[bool] = False
+
 # True will enable configuration options for testmode and testfolder
 ALLOW_TESTMODE: Final[bool] = False
 # True will enable variance for some measurement numbers when running in testmode from static files (numbers have no logical meaning)
