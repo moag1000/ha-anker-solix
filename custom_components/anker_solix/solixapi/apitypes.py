@@ -787,6 +787,7 @@ A5103  X1-H (5~12)K-T                           Residential Storage System
 A5140  MI60 Microinverter                       Balcony Solar Power System
 A5143  MI80 Microinverter(BLE)                  Balcony Solar Power System
 A5150  Microinverter                            Residential Storage System
+A5190  Smart EV Charger (WiFi only)              Smart EV Charger
 A5191  V1 Smart EV Charger                      Smart EV Charger
 A5220  X1 Battery Module                        Residential Storage System
 A5341  Backup Controller                        Residential Storage System
@@ -795,7 +796,9 @@ A91B2  240W Charging Station                    Charger
 AE100  SOLIX Power Dock                         Balcony Solar Power System
 AE1R0  Anker SOLIX P1 Meter                     Accessory
 AS100  C1000 Gen 2 LE                           Portable Power Station
+A7320  Range Extender (Generator/PPS hybrid)     Range Extender System
 AX1S0  Power Dock Pro                           Residential Storage System
+AX170  Third-party device                       Accessory
 ----------------------------------------------------------------------------------------------------
 """
 
@@ -845,6 +848,7 @@ class SolixDeviceType(Enum):
     CHARGER = "charger"
     POWERBANK = "powerbank"
     EV_CHARGER = "ev_charger"
+    GENERATOR = "generator"  # APK: A7320 Range Extender (generator/PPS hybrid)
     VEHICLE = "vehicle"
 
 
@@ -969,6 +973,11 @@ class ApiEndpointServices:
     power: str = "power_service"
     charging: str = "charging_energy_service"
     hes_svc: str = "charging_hes_svc"
+    # Additional service prefixes found in APK v3.18.0 strings (not yet implemented)
+    hes_dynamic_price: str = "charging_hes_dynamic_price_svc"
+    disaster_prepared: str = "charging_disaster_prepared"
+    imsg_svc: str = "charging_imsg_svc"
+    common_svc: str = "charging_common_svc"
 
 
 @dataclass(frozen=True)
@@ -1203,7 +1212,10 @@ class SolixDeviceCategory:
         SolixDeviceType.POWERBANK.value
     )  # Anker Prime Power Bank 220 W, 20Ah, 74 Wh
     # EV Charger
-    A5191: str = SolixDeviceType.EV_CHARGER.value  # SOLIX EV Charger
+    A5190: str = SolixDeviceType.EV_CHARGER.value  # Smart EV Charger (WiFi only)
+    A5191: str = SolixDeviceType.EV_CHARGER.value  # SOLIX V1 Smart EV Charger
+    # Generator / Range Extender
+    A7320: str = SolixDeviceType.GENERATOR.value  # Range Extender (generator/PPS hybrid)
 
 
 @dataclass(frozen=True)
