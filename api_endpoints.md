@@ -1,22 +1,22 @@
-# API Endpoints - Reverse Engineered from Anker App v3.18.0
+# API Endpoints — Notes from APK v3.18.0
 
-> **Data source:** Decompiled `libapp.so` (58 MB compiled Dart) from Anker App v3.18.0 APK
-> **Total endpoints found:** ~347 | **Integration implements:** ~188 (across 3 dicts) | **Newly added:** ~45 | **Still unimplemented:** ~159
+> **Source:** `strings` extraction from `libapp.so` (compiled Dart) of Anker App v3.18.0
+> Roughly ~347 endpoint paths found | Integration uses ~188 | ~45 newly added | ~159 not implemented
 
-> **⚠️ IMPORTANT DISCLAIMER**
+> **⚠️ DISCLAIMER**
 >
-> **Everything in this document is derived from static reverse engineering of one APK version (v3.18.0).** None of the newly documented endpoints have been called against the live Anker cloud API. We do not know:
-> - Whether these endpoints are still active in the current server version
-> - What the actual response JSON structures look like (though Dart model classes with `.fromJson` confirm structured responses exist)
+> Everything here comes from static analysis of **one** APK version. None of the new endpoints have been tested against the live API. We do not know:
+> - Whether these endpoints are still active
+> - What the actual JSON responses look like (Dart classes with `.fromJson` suggest structured responses — nothing more)
 > - What error codes or rate limits apply
-> - Whether parameter names/types are correct (inferred from Dart class fields, not documentation)
+> - Whether parameter names/types are correct (inferred from Dart fields, not documentation)
 > - Whether endpoints require specific device models, firmware versions, or account flags
 >
-> **Deep APK analysis (2026-03-19)** extracted 763 Dart model classes with `.fromJson`, confirmed response field names from `toString()` patterns, and identified per-device MQTT decoder functions. This raises confidence for several feature groups from "pure guess" to "structurally plausible" — but **no substitute for live API testing**.
+> The `strings` analysis (2026-03-19) found ~763 Dart classes with `.fromJson` and field names from `toString()` patterns. This makes some features plausible but is no substitute for live testing.
 >
-> Anker can change, deprecate, or gate any endpoint without notice.
+> Anker can change or remove any endpoint at any time.
 
-This document catalogues all API endpoints discovered through reverse engineering of the Anker mobile application, cross-referenced with the integration's `apitypes.py`. It serves as a reference for the `feat/new-api-endpoints` branch — not a confirmed API specification.
+Collected API endpoint paths from the Anker app, cross-referenced with `apitypes.py`. Reference for the `feat/new-api-endpoints` branch — not a verified API specification.
 
 ---
 
@@ -41,7 +41,7 @@ This document catalogues all API endpoints discovered through reverse engineerin
 - [MQTT Command Gaps](#mqtt-command-gaps)
 - [Speculative HA Entities from New Endpoints](#speculative-ha-entities-from-new-endpoints)
 - [Next Steps: Testing Required](#next-steps-testing-required)
-- [APK Deep Analysis Findings (2026-03-19)](#apk-deep-analysis-findings-2026-03-19)
+- [Additional Strings Found in Binary (2026-03-19)](#additional-strings-found-in-binary-2026-03-19)
 
 ---
 
@@ -78,7 +78,7 @@ The Anker Cloud API is split across multiple service prefixes:
 
 **All endpoints use HTTP POST** unless noted otherwise (`get_message_unread`, `get_message`, `get_product_categories`, `get_product_accessories` use GET).
 
-**APK-confirmed network ports:** 443 (HTTPS), 8883 (MQTT over TLS), 5353 (mDNS)
+**Network port strings found:** 443 (HTTPS), 8883 (MQTT over TLS), 5353 (mDNS)
 
 ---
 
@@ -90,14 +90,14 @@ These endpoint URL paths were extracted from the decompiled APK and added to the
 
 ### Range Extender System (A7320 Generator/PPS Hybrid) :red_circle: P1
 
-**APK Evidence (confirmed from `libapp.so` string analysis):**
+**Found in `libapp.so` strings:**
 
 This is **not** a "multi-device solar system" — it's a **generator + PPS hybrid system**. The A7320 pairs a fuel-based generator (gasoline/LPG/diesel) with a Portable Power Station for backup power. The `oe_a7320` Dart package contains 90+ source files.
 
-**14 Dart model classes with `.fromJson`** confirm JSON API responses exist:
+**14 Dart model classes with `.fromJson`** found (suggest JSON API responses exist):
 `RangeExtenderSystem`, `RangeExtenderSystemDetailModel`, `RangeExtenderSystemsModel`, `RangeExtenderDeviceModel`, `RangeExtenderBySocStrategyModel`, `RangeExtenderByTimeStrategyModel`, `RangeExtenderStrategyParamsModel`, `RangeExtenderStrategyRecordModel`, `RangeExtenderGeneratorModeModel`, `ExtenderSystemCumulativeDataModel`, `ExtenderSystemPnOtaModel`, `ExtenderSystemPnOtaItemModel`, `RangeExtenderFromDevice`, `ReSystemJoinedExtenderSystemDevice`
 
-**Confirmed response field names** (from `toString()` patterns and field references):
+**Field names found** (from `toString()` patterns and field references — actual JSON keys may differ):
 - System: `extenderSystemId`, `extenderSystemName`, `systemStatus`, `deviceCount`
 - Generator: `generatorPower`, `startGeneratorPower`, `stopGeneratorPower`, `fuelType`, `fuelLevel`, `hundredFuelConsumption`, `fuelConsumptionNow`, `totalFuelConsumption`, `oilEngineSystemStatus`, `runTime`, `runningMode`
 - Energy: `totalPowerGeneration`, `batteryDischargePower`, `dischargePower`
@@ -105,7 +105,7 @@ This is **not** a "multi-device solar system" — it's a **generator + PPS hybri
 - Links: `generatorDeviceSn`, `ppsDeviceSn`, `connectionStatus`, `linkageOnlineStatus`
 - Booleans: `isAcMode`, `isOilDeviceRunning`, `can_extender_system`
 
-> **Caveat:** Field names are confirmed in the binary, but actual JSON key casing (camelCase vs snake_case) and nesting structure are unknown until a live response is captured. This system is niche — requires a physical A7320 generator.
+> **Caveat:** Field names appear in the binary, but actual JSON key casing (camelCase vs snake_case) and nesting structure are unknown until a live response is captured. This system is niche — requires a physical A7320 generator.
 
 | Key | Path | Purpose | Params | HA Integration Use |
 |-----|------|---------|--------|--------------------|
@@ -113,30 +113,30 @@ This is **not** a "multi-device solar system" — it's a **generator + PPS hybri
 | `get_extender_system_detail` | `power_service/v1/app/get_extender_system_detail` | Full system detail | `{"system_id": systemId}` | Likely contains generator status, fuel level, power flow fields listed above |
 | `add_extender_system` | `power_service/v1/app/add_extender_system` | Create a new system | System config (unknown) | Setup-only, not for HA |
 | `del_extender_system` | `power_service/v1/app/del_extender_system` | Delete a system | `{"system_id": systemId}` | Destructive — should not be exposed |
-| `update_extender_system_strategy` | `power_service/v1/app/update_extender_system_strategy` | Update SOC-based or time-based strategy | Strategy config | Write — two strategy types confirmed (BySoc, ByTime) |
+| `update_extender_system_strategy` | `power_service/v1/app/update_extender_system_strategy` | Update SOC-based or time-based strategy | Strategy config | Write — two strategy type model classes found (BySoc, ByTime) |
 | `get_extender_system_cumulative_data` | `power_service/v1/app/get_extender_system_cumulative_data` | Cumulative energy/fuel data | `{"system_id": systemId}` | Likely returns `totalPowerGeneration`, `totalFuelConsumption` |
 | `set_extender_system_name` | `power_service/v1/app/set_extender_system_name` | Rename the system | `{"system_id": systemId, "name": newName}` | Low value for HA |
 | `add_extender_system_device_list` | `power_service/v1/app/add_extender_system_device_list` | List eligible devices | `{"system_id": systemId}` | Setup-only |
 | `batch_add_extender_system_device` | `power_service/v1/app/batch_add_extender_system_device` | Batch add devices | Device SN list (format unknown) | Setup-only |
 | `batch_del_extender_system_device` | `power_service/v1/app/batch_del_extender_system_device` | Batch remove devices | Device SN list (format unknown) | Destructive — setup-only |
-| `get_extender_system_pn_ota` | `power_service/v1/app/get_extender_system_pn_ota` | OTA info | `{"system_id": systemId}` | `ExtenderSystemPnOtaModel` confirmed |
+| `get_extender_system_pn_ota` | `power_service/v1/app/get_extender_system_pn_ota` | OTA info | `{"system_id": systemId}` | `ExtenderSystemPnOtaModel` class name found |
 | `set_extender_system_cumulative_data` | `power_service/v1/app/set_extender_system_cumulative_data` | Correct cumulative data | Cumulative data object (unknown) | Risky write — manual correction only |
 
 ---
 
 ### AI EMS (HES) :red_circle: P1
 
-**APK Evidence (confirmed from `libapp.so` string analysis):**
+**Found in `libapp.so` strings:**
 
-AI-based Energy Management System for Home Energy Systems. The APK reveals a **multi-day training cycle** with defined states and MQTT real-time updates.
+AI-based Energy Management System for Home Energy Systems. Strings suggest a **multi-day training cycle** with defined states and MQTT updates.
 
 **6 Dart model classes with `.fromJson`**: `AiEmsProfitModel`, `AiEmsProfitInfo`, `AiEmsParamData`, `AiModeStatusModel`, `LargeChargerAiEmsProfit`, `MqttAIEmsStateModel`
 
-**Confirmed training states** (from UI asset names): `studying` (training in progress, days countdown) → `study_failed` (can retry for %s more days) → `study_success` (completed)
+**Training states found** (from UI asset names): `studying` (training in progress, days countdown) → `study_failed` (can retry for %s more days) → `study_success` (completed)
 
-**Confirmed response field names**: `aiems_profit`, `aiems_profit_total`, `aiems_lifetime_profit`, `aiems_self_use_diff`, `self_use_diff_percent`, `enable_aiems_v2`
+**Field names found**: `aiems_profit`, `aiems_profit_total`, `aiems_lifetime_profit`, `aiems_self_use_diff`, `self_use_diff_percent`, `enable_aiems_v2`
 
-**5 EMS mode types confirmed**: `AIEMS`, `Add`, `Custom`, `ManualBackup`, `UseTime`
+**5 EMS mode types found**: `AIEMS`, `Add`, `Custom`, `ManualBackup`, `UseTime`
 
 **IoT commands**: `akiot.ems.get_ems_mode`, `akiot.ems.set_ems_mode`
 
@@ -149,7 +149,7 @@ AI-based Energy Management System for Home Energy Systems. The APK reveals a **m
 | Key | Path | Purpose | Params | HA Integration Use |
 |-----|------|---------|--------|--------------------|
 | `get_ai_ems_status` | `power_service/v1/ai_ems/get_status` | Get AI learning status | `{"site_id": siteId}` | Likely returns training state + remaining days — `AiModeStatusModel` exists |
-| `get_ai_ems_profit` | `power_service/v1/ai_ems/profit` | Get AI EMS savings data | `{"site_id": siteId, "start_time": "00:00", "end_time": "24:00", "type": "grid"}` | Fields confirmed: `aiems_profit`, `aiems_profit_total`, `aiems_lifetime_profit` |
+| `get_ai_ems_profit` | `power_service/v1/ai_ems/profit` | Get AI EMS savings data | `{"site_id": siteId, "start_time": "00:00", "end_time": "24:00", "type": "grid"}` | Field names found: `aiems_profit`, `aiems_profit_total`, `aiems_lifetime_profit` |
 
 **In `API_HES_SVC_ENDPOINTS`:**
 
@@ -157,23 +157,23 @@ AI-based Energy Management System for Home Energy Systems. The APK reveals a **m
 |-----|------|---------|--------|--------------------|
 | `authorize_aiems` | `charging_hes_svc/authorize_aiems` | Authorize AI EMS for HES site | `{"siteId": siteId}` | Write — one-time authorization, flow: authorize → enable → profit |
 | `enable_aiems_mode4` | `charging_hes_svc/enable_aiems_mode4` | Enable AI EMS (mode4 = one of 5 EMS types) | `{"siteId": siteId}` | Write — triggers training cycle |
-| `get_aiems_profit` | `charging_hes_svc/get_aiems_profit` | Get AI EMS profit via HES path | `{"siteId": siteId}` | `AiEmsProfitModel` confirmed — duplicate path to power_service profit endpoint |
+| `get_aiems_profit` | `charging_hes_svc/get_aiems_profit` | Get AI EMS profit via HES path | `{"siteId": siteId}` | `AiEmsProfitModel` class name found — possibly duplicate of power_service profit endpoint |
 
 ---
 
 ### VPP / Evergen (Virtual Power Plant) :yellow_circle: P2
 
-**APK Evidence (confirmed from `libapp.so` string analysis):**
+**Found in `libapp.so` strings:**
 
-VPP platform is **confirmed as Evergen**. Strings: `applyToJoinEvergen`, `evergenAccept`, `evergenDecline`, `evergenEnrolled`, `evergenEnrollingIn`, `isEvergen`, `EvergenState`.
+VPP platform appears to be **Evergen** based on strings: `applyToJoinEvergen`, `evergenAccept`, `evergenDecline`, `evergenEnrolled`, `evergenEnrollingIn`, `isEvergen`, `EvergenState`.
 
-**Critical finding**: VPP takes full control of the battery — verbatim from APK: *"Your system is now connected to the Evergen VPP platform. EMS Mode and battery charging / discharging operations are now controlled by the platform."*
+A string in the binary reads: *"Your system is now connected to the Evergen VPP platform. EMS Mode and battery charging / discharging operations are now controlled by the platform."* — suggesting VPP takes full battery control.
 
-**Grid Dispatch (DRED/RCR)** is A5101-specific: `GridDispatchLogic`, `GridDispatchBinding`, `a5101GridDispatch`, `dred_rcr_state`
+**Grid Dispatch (DRED/RCR)** strings are A5101-specific: `GridDispatchLogic`, `GridDispatchBinding`, `a5101GridDispatch`, `dred_rcr_state`
 
-**Model classes**: `VppInfoModel.fromJson`, `VppServicePolicyModel.fromJson` — only 2 models, relatively simple feature.
+**Model classes found**: `VppInfoModel.fromJson`, `VppServicePolicyModel.fromJson` — only 2 models.
 
-**Confirmed fields**: `vppEnable`, `vppType`, `vppstatus`, `vppstatus_des`
+**Field names found**: `vppEnable`, `vppType`, `vppstatus`, `vppstatus_des`
 
 > **Caveat:** VPP is region-locked (likely AU, potentially UK). Requires active Evergen enrollment agreement. Non-enrolled accounts will likely get empty/error responses. The `power_service` VPP endpoints may be a different code path from the `charging_hes_svc` ones — untestable without Evergen access.
 
@@ -196,13 +196,13 @@ VPP platform is **confirmed as Evergen**. Strings: `applyToJoinEvergen`, `everge
 
 ### Dynamic Pricing (Nordpool / Tibber / Octopus Energy) :yellow_circle: P2
 
-**APK Evidence (confirmed from `libapp.so` string analysis):**
+**Found in `libapp.so` strings:**
 
-**Three providers confirmed** (not two): Nordpool, Tibber, and **Octopus Energy** (`OctopusArea.fromJson`, `OctopusParam.fromJson`).
+**Three providers found** (not two): Nordpool, Tibber, and **Octopus Energy** (`OctopusArea.fromJson`, `OctopusParam.fromJson`).
 
 **11 Dart model classes**: `DynamicPrice`, `DynamicPriceChartData`, `DynamicPriceCompanyModel`, `DynamicPriceCountryAreaModel`, `DynamicPriceDetailModel`, `DynamicPriceModel`, `DynamicPriceModuleModel`, `DynamicPriceParam`, `DynamicPriceParamData`, `DynamicPriceStatisticDataModel`, `SaveDynamicPriceResponse` — plus `NordpoolArea`, `NordpoolParam`, `UserNordpoolParam`, `UserTibberParam`, `OctopusArea`, `OctopusParam`
 
-**Negative electricity price feature confirmed**: Dart sources include `negative_electricity_price/negative_using_view.dart` and `negative_period_no_main_power_view.dart` — the app has UI for managing negative price periods.
+**Negative electricity price feature likely exists**: Dart sources include `negative_electricity_price/negative_using_view.dart` and `negative_period_no_main_power_view.dart` — the app has UI for managing negative price periods.
 
 **Tibber uses OAuth/WebView flow**: `_saveTibberWebToken`, `Push to tibber webView url`
 
@@ -241,19 +241,19 @@ The existing `get_dynamic_price_details` endpoint is already implemented and wor
 
 ### Auto Disaster Preparedness (Storm Guard) :yellow_circle: P2
 
-**APK Evidence (confirmed from `libapp.so` string analysis):**
+**Found in `libapp.so` strings:**
 
 This is a **comprehensive weather warning system** with two distinct modes:
 - **Auto mode**: Weather-triggered via `AutoDisasterPreparednessMixin` — automatically reserves battery when severe weather detected
 - **Manual mode**: User-triggered via `ManualDisasterPreparednessMixin`
 
-**9+ Dart model classes with `.fromJson`**: `AutoDisasterPrepareStatusModel`, `AutoDisasterDetailModel`, `AutoDisasterQuitPrepareModel`, `A5101MqttAutoDisasterStateModel`, `DisasterStatus`, `DisasterEvent`, `DisasterSetting`, `DisasterPrepareDetail`, `DisasterPrepareDetailsModel`, `DisasterPreparednessInfo`, `DisasterPreparednessPlans`, `BackUpHistory`, `BackupHistoryModel`
+**9+ Dart model classes with `.fromJson` found**: `AutoDisasterPrepareStatusModel`, `AutoDisasterDetailModel`, `AutoDisasterQuitPrepareModel`, `A5101MqttAutoDisasterStateModel`, `DisasterStatus`, `DisasterEvent`, `DisasterSetting`, `DisasterPrepareDetail`, `DisasterPrepareDetailsModel`, `DisasterPreparednessInfo`, `DisasterPreparednessPlans`, `BackUpHistory`, `BackupHistoryModel`
 
-**Confirmed response fields**: `auto_disaster_enable`, `auto_disaster_status`, `auto_disaster_switch`, `disaster_preparedness_enable`, `disaster_preparedness_soc`, `disaster_preparedness_start`, `disaster_preparedness_end`, `disaster_preparedness_plans`, `manual_disaster_status`, `manual_disaster_switch`, `support_auto_disaster`, `pps_auto_disaster_preparedness_switch`
+**Field names found**: `auto_disaster_enable`, `auto_disaster_status`, `auto_disaster_switch`, `disaster_preparedness_enable`, `disaster_preparedness_soc`, `disaster_preparedness_start`, `disaster_preparedness_end`, `disaster_preparedness_plans`, `manual_disaster_status`, `manual_disaster_switch`, `support_auto_disaster`, `pps_auto_disaster_preparedness_switch`
 
-**40+ weather event types confirmed** (examples): `disasterTypeExtremelyHeavyRain`, `disasterTypeThunderstormsAndHail`, `disasterTypeAvalanches`, `disasterTypeFireWeather`, `disasterTypeTropicalStormWarning`, `disasterCoastalFloodWarning`, `disasterFlashFloodWarning`, etc.
+**40+ weather event type strings found** (examples): `disasterTypeExtremelyHeavyRain`, `disasterTypeThunderstormsAndHail`, `disasterTypeAvalanches`, `disasterTypeFireWeather`, `disasterTypeTropicalStormWarning`, `disasterCoastalFloodWarning`, `disasterFlashFloodWarning`, etc.
 
-**MQTT real-time state**: `A5101MqttAutoDisasterStateModel.fromJson` — storm guard state pushed to clients. Also: `====A17B1 StationMqttMixin AutoDisaster cmd:`, `====A1782 StationMqttMixin AutoDisaster cmd:` — multiple device models support this.
+**MQTT state model found**: `A5101MqttAutoDisasterStateModel.fromJson` — suggests storm guard state is pushed to clients. Also: `====A17B1 StationMqttMixin AutoDisaster cmd:`, `====A1782 StationMqttMixin AutoDisaster cmd:` — multiple device models may support this.
 
 > **Caveat:** Requires HES/X1 or Power Panel (A17B1, A1782) hardware. Weather data source unknown (likely NWS or similar). Region availability unclear. The `disaster_preparedness_soc` field suggests a configurable reserve SOC percentage during weather events.
 
@@ -264,7 +264,7 @@ This is a **comprehensive weather warning system** with two distinct modes:
 | `get_auto_disaster_status` | `charging_hes_svc/get_auto_disaster_prepare_status` | Get Storm Guard status | `{"siteId": siteId}` | Likely returns `auto_disaster_enable`, `auto_disaster_status`, `support_auto_disaster` |
 | `get_auto_disaster_detail` | `charging_hes_svc/get_auto_disaster_prepare_detail` | Get Storm Guard config | `{"siteId": siteId}` | Likely returns `disaster_preparedness_soc`, `disaster_preparedness_plans` |
 | `get_current_disaster_detail` | `charging_hes_svc/get_current_disaster_prepare_details` | Get active storm event | `{"siteId": siteId}` | `DisasterEvent.fromJson` — returns event type + details during active weather |
-| `get_backup_history` | `charging_hes_svc/get_back_up_history` | Get backup event history | `{"siteId": siteId}` | `BackupHistoryModel.fromJson` confirmed |
+| `get_backup_history` | `charging_hes_svc/get_back_up_history` | Get backup event history | `{"siteId": siteId}` | `BackupHistoryModel.fromJson` class name found |
 
 **Unimplemented HES endpoints (also in comments):**
 
@@ -764,16 +764,16 @@ These are auth-related and mostly handled by the login flow. Not relevant for HA
 
 The integration communicates with devices via MQTT for real-time data and control commands. The `mqttcmdmap.py` defines **63 command types** across the `SolixMqttCommands` dataclass, with **174 mapped message types** across device models. Several gaps exist.
 
-**APK Evidence — per-device MQTT decoders confirmed:**
+**Per-device MQTT decoder function names found in binary:**
 `a172x_mqtt_decode_`, `a1771_mqtt_decode_`, `a1781_mqtt_decode_`, `a17a3_mqtt_decode_`, `a17b1_mqtt_decode_`, `a17c0_mqtt_decode_`, `a17c1_mqtt_decode_`, `a17x7_mqtt_decode_`, `a17x8_mqtt_decode_`, `a91b2_mqtt_decode_`, `iot_mqtt_decode_3`
 
-**MQTT gzip decompression confirmed:** `MqttDecompressionUtil` — payloads can be gzip-compressed or plain JSON. Main data payload is `SceneInfo`.
+**MQTT gzip decompression found:** `MqttDecompressionUtil` — suggests payloads can be gzip-compressed or plain JSON. Main data payload appears to be `SceneInfo`.
 
-**MQTT feature state models confirmed:**
-- `MqttAIEmsStateModel.fromJson` — AI EMS state pushed real-time
-- `A5101MqttAutoDisasterStateModel.fromJson` — Storm Guard state pushed real-time
-- `A5101MQTTDeviceInfoModel.fromJson`, `A5101MqttDeviceStateModel.fromJson` — X1 device info/state
-- `A17b1MqttDeviceInfoModel.fromJson` — Power Panel device info
+**MQTT feature state model classes found:**
+- `MqttAIEmsStateModel.fromJson` — likely AI EMS state
+- `A5101MqttAutoDisasterStateModel.fromJson` — likely Storm Guard state
+- `A5101MQTTDeviceInfoModel.fromJson`, `A5101MqttDeviceStateModel.fromJson` — likely X1 device info/state
+- `A17b1MqttDeviceInfoModel.fromJson` — likely Power Panel device info
 
 ### 5 Disabled-but-Defined Commands
 
@@ -781,11 +781,11 @@ These commands are defined in `SolixMqttCommands` but are marked as non-function
 
 | Command | Status | Reason | APK Evidence |
 |---------|--------|--------|-------------|
-| `sb_usage_mode` | **Not supported** | Uses various field patterns per mode with the same command message. Too complex for single MQTT command | APK shows this is set through cloud API `set_device_parm` with param type 6 (SB2 schedule) instead |
-| `sb_3rd_party_pv_switch` | **Driven through cloud** | Cloud API required (`get_device_parm` type 26) | APK confirms cloud-side handling |
-| `sb_ev_charger_switch` | **Driven through cloud** | Cloud API required | APK confirms cloud-side handling |
-| `ac_charge_limit` | **Commented out** (import line 8 in mqttmap.py) | Correct message type unknown | APK shows field `CMD_AC_CHARGE_LIMIT` at commented TODO line ~2425: "Range 100-800 W, step 100?" |
-| `sb_ac_input_limit` | **Partially implemented** | Only for A17C5 (SB3). Message type for other models unclear | APK shows this is an A17C5-specific feature via `set_device_attrs` |
+| `sb_usage_mode` | **Not supported** | Uses various field patterns per mode with the same command message. Too complex for single MQTT command | Strings suggest this is set through cloud API `set_device_parm` with param type 6 (SB2 schedule) instead |
+| `sb_3rd_party_pv_switch` | **Driven through cloud** | Cloud API required (`get_device_parm` type 26) | Strings suggest cloud-side handling |
+| `sb_ev_charger_switch` | **Driven through cloud** | Cloud API required | Strings suggest cloud-side handling |
+| `ac_charge_limit` | **Commented out** (import line 8 in mqttmap.py) | Correct message type unknown | `CMD_AC_CHARGE_LIMIT` string found; comment in code says "Range 100-800 W, step 100?" |
+| `sb_ac_input_limit` | **Partially implemented** | Only for A17C5 (SB3). Message type for other models unclear | Strings suggest A17C5-specific feature via `set_device_attrs` |
 
 ### 19 Suspected Missing MQTT Message Handlers
 
@@ -793,47 +793,47 @@ Based on APK code analysis and guesses about device capabilities. **These are sp
 
 | # | Area | Description | APK Evidence | Status |
 |---|------|-------------|-------------|--------|
-| 1 | Solarbank | Battery cell voltage details | `DEVICE_BATTER_CELL_CYCLE_TIMES` field confirmed; BLE: `prop_read_battery_pack_info` | **Partial** — field exists, MQTT mapping unknown |
-| 2 | Solarbank | Battery temperature per pack | `sub_pack_temp_alarm`, `rn_battery_temperature` confirmed | **Partial** — fields exist, MQTT mapping unknown |
-| 3 | Solarbank | Grid frequency | `action_set_biggest_frequency` confirmed | **Partial** — write action exists, read path unknown |
+| 1 | Solarbank | Battery cell voltage details | `DEVICE_BATTER_CELL_CYCLE_TIMES` field found; BLE: `prop_read_battery_pack_info` | **Partial** — field exists, MQTT mapping unknown |
+| 2 | Solarbank | Battery temperature per pack | `sub_pack_temp_alarm`, `rn_battery_temperature` found | **Partial** — fields exist, MQTT mapping unknown |
+| 3 | Solarbank | Grid frequency | `action_set_biggest_frequency` found | **Partial** — write action exists, read path unknown |
 | 4 | Solarbank | Grid voltage per phase | No specific APK evidence | Unconfirmed |
 | 5 | Solarbank | Power factor / cos(phi) | No specific APK evidence | Unconfirmed |
-| 6 | Solarbank | Cumulative energy counters | `grid_exported_total`, `grid_imported_total`, `solar_to_grid_total`, `solar_to_home_total`, `battery_to_home_total`, `grid_to_battery_total` confirmed | **Confirmed** — fields exist in APK, MQTT message type unknown |
-| 7 | Solarbank | MPPT tracker details | `solar_power_1` through `solar_power_4` confirmed (A17C5: 4 MPPT) | **Confirmed** — per-MPPT fields exist |
-| 8 | Smart Meter | Phase current/power readings | `a17x7_mqtt_decode_` and `a17a3_mqtt_decode_` confirmed; Shelly3EM integration | **Partial** — device decoders exist |
-| 9 | Smart Meter | Energy import/export | `grid_exported_total`, `grid_imported_total` confirmed | **Partial** — fields exist |
+| 6 | Solarbank | Cumulative energy counters | `grid_exported_total`, `grid_imported_total`, `solar_to_grid_total`, `solar_to_home_total`, `battery_to_home_total`, `grid_to_battery_total` found | **Plausible** — fields exist in binary, MQTT message type unknown |
+| 7 | Solarbank | MPPT tracker details | `solar_power_1` through `solar_power_4` found (A17C5: 4 MPPT) | **Plausible** — per-MPPT fields exist |
+| 8 | Smart Meter | Phase current/power readings | `a17x7_mqtt_decode_` and `a17a3_mqtt_decode_` found; Shelly3EM integration | **Partial** — device decoders exist |
+| 9 | Smart Meter | Energy import/export | `grid_exported_total`, `grid_imported_total` found | **Partial** — fields exist |
 | 10 | EV Charger | Session real-time data | `A5101MqttOrderResultModel.fromJson`; `prop_read_charging_real_time_data` via BLE | **Partial** — MQTT order model + BLE read exist |
-| 11 | EV Charger | RFID events | Full RFID management via BLE (`prop_read_rfid`, `prop_write_rfid`) + API (`rfid/get_device_cards`) | **Confirmed** — but MQTT event path unknown |
-| 12 | EV Charger | Cable/connector lock | `ChargingConnectorLockMenuController`, `requestConnectorLockConfig` confirmed | **Partial** — controller exists, MQTT mapping unknown |
+| 11 | EV Charger | RFID events | RFID management via BLE (`prop_read_rfid`, `prop_write_rfid`) + API (`rfid/get_device_cards`) | **Plausible** — but MQTT event path unknown |
+| 12 | EV Charger | Cable/connector lock | `ChargingConnectorLockMenuController`, `requestConnectorLockConfig` found | **Partial** — controller exists, MQTT mapping unknown |
 | 13 | EV Charger | Vehicle connection | `isConnectedToEnodeapi`, `enode_vehicle_id` — Enode API vehicle integration | **Partial** — API integration, MQTT path unknown |
-| 14 | EV Charger | Load balancing | `A5190LoadBalancingModel.fromJson`, `dynamicLoadBalancing` confirmed | **Partial** — model exists |
+| 14 | EV Charger | Load balancing | `A5190LoadBalancingModel.fromJson`, `dynamicLoadBalancing` found | **Partial** — model exists |
 | 15 | PPS | Port power details | Partially implemented in integration | Existing |
-| 16 | PPS | Battery cycle count | `DEVICE_BATTER_CELL_CYCLE_TIMES` confirmed | **Confirmed** — field name exists |
-| 17 | HES / X1 | Battery module status | `A5101MqttDeviceStateModel.fromJson` confirmed | **Partial** — MQTT state model exists |
+| 16 | PPS | Battery cycle count | `DEVICE_BATTER_CELL_CYCLE_TIMES` found | **Plausible** — field name exists |
+| 17 | HES / X1 | Battery module status | `A5101MqttDeviceStateModel.fromJson` found | **Partial** — MQTT state model exists |
 | 18 | HES / X1 | PCU details | No specific APK evidence for PCU | Unconfirmed |
-| 19 | HES / X1 | Backup controller | `action_set_backup_mode`, `action_set_backup_strategy` confirmed | **Partial** — write actions exist |
-| 20 | HES / X1 | **Heat pump state** (NEW) | `HeatPumpModel.fromJson`, `_handleMqttDeviceHeatPumpState` confirmed | **Confirmed** — MQTT handler exists |
-| 21 | HES / X1 | **AI EMS state** (NEW) | `MqttAIEmsStateModel.fromJson`, `_handleMqttAIEmsState` confirmed | **Confirmed** — MQTT handler exists |
-| 22 | HES / X1 | **Storm Guard state** (NEW) | `A5101MqttAutoDisasterStateModel.fromJson` confirmed | **Confirmed** — MQTT handler exists |
+| 19 | HES / X1 | Backup controller | `action_set_backup_mode`, `action_set_backup_strategy` found | **Partial** — write actions exist |
+| 20 | HES / X1 | **Heat pump state** (NEW) | `HeatPumpModel.fromJson`, `_handleMqttDeviceHeatPumpState` found | **Plausible** — MQTT handler name exists |
+| 21 | HES / X1 | **AI EMS state** (NEW) | `MqttAIEmsStateModel.fromJson`, `_handleMqttAIEmsState` found | **Plausible** — MQTT handler name exists |
+| 22 | HES / X1 | **Storm Guard state** (NEW) | `A5101MqttAutoDisasterStateModel.fromJson` found | **Plausible** — MQTT handler name exists |
 
-> **Note:** Message type codes remain unknown for most entries. However, the APK now provides stronger evidence than before: confirmed field names, Dart model classes with `.fromJson`, and device-specific MQTT decoder functions. Items marked "Confirmed" have both field names and MQTT model classes. Items marked "Partial" have field names but no confirmed MQTT message mapping. Traffic capture from specific devices remains the only way to complete the picture.
+> **Note:** Message type codes remain unknown for most entries. The APK provides some evidence — field names, Dart model class names, and MQTT decoder function names — but none of this has been verified with actual MQTT traffic. Items marked "Plausible" have both field names and model class names in the binary. Items marked "Partial" have field names but no MQTT message mapping. Traffic capture from specific devices remains the only way to know what actually works.
 
 ---
 
 ## Speculative HA Entities from New Endpoints
 
-> **⚠️ No live API responses have been observed.** However, the deep APK analysis has confirmed Dart model classes (`.fromJson`), response field names, and MQTT state models for several feature groups. This raises confidence from "pure guess" to "structurally plausible" — but still needs live testing.
+> **⚠️ No live API responses have been observed.** The `strings` analysis found Dart model class names, field names, and MQTT handler names for several feature groups. This is better than pure guessing, but still far from verified.
 
 | Endpoint Group | Likely Response Fields (from APK) | Guessed Entity Type | Priority | Confidence |
 |---|---|---|---|---|
-| **Range Extender** | `systemStatus`, `fuelLevel`, `generatorPower`, `totalPowerGeneration`, `totalFuelConsumption` — 14 model classes | `sensor` | :red_circle: P1 | **Medium** — rich model structure, but niche hardware (A7320 generator) |
-| **AI EMS** | `aiems_profit`, `aiems_profit_total`, `aiems_lifetime_profit`, training state — 6 model classes + MQTT state | `sensor` | :red_circle: P1 | **Medium** — model classes + MQTT handler confirmed |
-| **VPP / Evergen** | `vppEnable`, `vppstatus`, `vppstatus_des` — 2 model classes | `binary_sensor` | :yellow_circle: P2 | Low — region-locked to Evergen markets |
-| **Dynamic Pricing** | `DynamicPriceDetailModel` + `NordpoolParam` + `OctopusParam` + negative price — 11+ models | `sensor` | :yellow_circle: P2 | **Medium-High** — existing endpoint works, 3 providers confirmed |
-| **Storm Guard** | `auto_disaster_enable`, `disaster_preparedness_soc`, 40+ event types — 9+ model classes + MQTT state | `binary_sensor`, `sensor` | :yellow_circle: P2 | **Medium** — rich model structure, MQTT handler confirmed |
-| **Heat Pump** (NEW) | `HeatPumpModel`, `HeatPumpPlan` — MQTT state handler confirmed | `sensor`? | :yellow_circle: P2 | **Medium** — MQTT handler exists |
+| **Range Extender** | `systemStatus`, `fuelLevel`, `generatorPower`, `totalPowerGeneration`, `totalFuelConsumption` — 14 model classes | `sensor` | :red_circle: P1 | **Low** — many model classes but niche hardware (A7320 generator), untested |
+| **AI EMS** | `aiems_profit`, `aiems_profit_total`, `aiems_lifetime_profit`, training state — 6 model classes + MQTT state | `sensor` | :red_circle: P1 | **Low-Medium** — model class names found, but requires X1 hardware |
+| **VPP / Evergen** | `vppEnable`, `vppstatus`, `vppstatus_des` — 2 model classes | `binary_sensor` | :yellow_circle: P2 | **Low** — region-locked, untestable without Evergen access |
+| **Dynamic Pricing** | `DynamicPriceDetailModel` + `NordpoolParam` + `OctopusParam` + negative price — 11+ models | `sensor` | :yellow_circle: P2 | **Medium** — existing endpoint works, new ones might too |
+| **Storm Guard** | `auto_disaster_enable`, `disaster_preparedness_soc`, 40+ event types — 9+ model classes + MQTT state | `binary_sensor`, `sensor` | :yellow_circle: P2 | **Low-Medium** — many class names found, MQTT handler name exists |
+| **Heat Pump** (NEW) | `HeatPumpModel`, `HeatPumpPlan` — MQTT handler name found | `sensor`? | :yellow_circle: P2 | **Low** — handler name exists, nothing else known |
 | **Location** | `identifier_id`, `identifier_type`, `business_type` | Internal | :green_circle: P3 | Low — param semantics unclear |
-| **EV Charger** | RFID, connector lock, load balancing, Enode vehicle — multiple models confirmed | `sensor`, `binary_sensor` | :yellow_circle: P2 | **Medium** — A5190/A5191 models have rich BLE+API support |
+| **EV Charger** | RFID, connector lock, load balancing, Enode vehicle — multiple model class names found | `sensor`, `binary_sensor` | :yellow_circle: P2 | **Low-Medium** — class names exist, untested |
 | **Reports** | Unknown — may return HTML links | `sensor`? | :green_circle: P3 | Very Low — may not return JSON data |
 | **Device Management** | Various | Diagnostics | :green_circle: P3 | Low |
 
@@ -849,29 +849,29 @@ Based on APK code analysis and guesses about device capabilities. **These are sp
 
 ### Candidates for Initial Testing (highest confidence from APK analysis)
 
-1. **Dynamic Pricing extensions** (`get_dynamic_price_plan`, `get_dynamic_price_rates`): The existing `get_dynamic_price_details` already works. 11+ Dart model classes confirm rich response structures. Three providers confirmed (Nordpool, Tibber, Octopus Energy). Negative price handling exists. **Highest confidence** among new endpoints.
+1. **Dynamic Pricing extensions** (`get_dynamic_price_plan`, `get_dynamic_price_rates`): The existing `get_dynamic_price_details` already works, so related endpoints have a better chance. 11+ Dart model class names found. Three providers found (Nordpool, Tibber, Octopus Energy). Still needs live testing.
 
-2. **`get_ai_ems_status`**: Read-only. 6 model classes confirmed. Training state machine (studying/failed/success) with days countdown. MQTT real-time push via `MqttAIEmsStateModel`. But: requires X1/HES hardware and possibly server-side AI feature enablement.
+2. **`get_ai_ems_status`**: Read-only. 6 model class names found. Training state strings (studying/failed/success) found. MQTT handler name `MqttAIEmsStateModel` exists. But: requires X1/HES hardware and possibly server-side feature enablement.
 
-3. **Storm Guard** (`get_auto_disaster_status`, `get_auto_disaster_detail`): Read-only. 9+ model classes, 40+ weather event types, confirmed fields (`disaster_preparedness_soc`, auto/manual modes). MQTT state handler exists. But: requires HES/Power Panel hardware, region-dependent weather data source.
+3. **Storm Guard** (`get_auto_disaster_status`, `get_auto_disaster_detail`): Read-only. 9+ model class names, 40+ weather event type strings, field names like `disaster_preparedness_soc` found. MQTT handler name exists. But: requires HES/Power Panel hardware, region-dependent weather data source.
 
 4. **`get_site_detail_by_sn`**: Simple lookup. If it works, could improve config flow. Low risk.
 
 ### Lower Priority / Higher Risk
 
-5. **Range Extender System**: 14 model classes, 90+ Dart source files — the largest feature. But this is a **generator/PPS hybrid** (A7320), not solar. Very niche hardware. Rich field evidence (`fuelLevel`, `generatorPower`, `totalFuelConsumption`) suggests the API is mature, but testing requires physical A7320.
+5. **Range Extender System**: 14 model class names, many field name strings found. But this is a **generator/PPS hybrid** (A7320), not solar. Very niche hardware. Testing requires physical A7320.
 
 6. **VPP / Evergen**: Region-locked. Requires active Evergen enrollment agreement. Only 2 model classes — relatively simple, but completely untestable without VPP access.
 
-7. **MQTT message handlers**: The APK analysis upgraded several gaps from "pure guess" to "confirmed fields exist" (battery cycle count, MPPT per-tracker power, cumulative energy counters, heat pump, AI EMS state, Storm Guard state). However, the MQTT message type codes that carry these fields remain unknown. Traffic capture from specific device types is still required.
+7. **MQTT message handlers**: The `strings` analysis found field names and model class names for several gaps (battery cycle count, MPPT per-tracker power, cumulative energy counters, heat pump, AI EMS state, Storm Guard state). But the MQTT message type codes that carry these fields remain completely unknown. Traffic capture from specific device types is still required.
 
 ### Newly Discovered Features (not in previous documentation)
 
-8. **Heat Pump Integration**: `HeatPumpModel.fromJson`, `HeatPumpPlan.fromJson`, `_handleMqttDeviceHeatPumpState` — undocumented feature with MQTT state handler. Endpoint: `charging_hes_svc/get_heat_pump_plan_json`. Requires HES/X1 hardware with heat pump connected.
+8. **Heat Pump Integration**: `HeatPumpModel.fromJson`, `HeatPumpPlan.fromJson`, `_handleMqttDeviceHeatPumpState` strings found. Endpoint: `charging_hes_svc/get_heat_pump_plan_json`. Requires HES/X1 hardware with heat pump connected. Completely untested.
 
-9. **Anka AI Agent**: WebSocket-based AI chat (`AiChatManager`), endpoints at `/smart_service/v1/app/anka/`. Not useful for HA entities but confirms Anker is building AI features.
+9. **Anka AI Agent**: `AiChatManager` and `/smart_service/v1/app/anka/` strings found. Not useful for HA entities.
 
-10. **IoT Command Namespace** (`akiot.*`): Complete IoT SDK with 40+ commands for BLE, MQTT, device management, energy analysis. These are the native SDK methods the app uses internally — may reveal additional control paths.
+10. **IoT Command Namespace** (`akiot.*`): ~40+ command name strings found. These appear to be internal SDK method names — unclear whether they can be called externally.
 
 ---
 
@@ -906,9 +906,9 @@ Based on APK code analysis and guesses about device capabilities. **These are sp
 
 ---
 
-## APK Deep Analysis Findings (2026-03-19)
+## Additional Strings Found in Binary (2026-03-19)
 
-### Confirmed Power Flow Field Names (from `libapp.so` strings)
+### Power Flow Field Names (from `libapp.so` strings)
 
 These field names appear in the compiled Dart binary and represent the internal data model for energy flow. Many are already implemented in the integration — listed here for completeness and cross-reference.
 
@@ -922,23 +922,23 @@ These field names appear in the compiled Dart binary and represent the internal 
 
 **Home:** `home_load_power`, `current_home_load`, `default_home_load`
 
-### Shelly Integration Clarification
+### Shelly Integration
 
-Shelly devices are controlled via **Anker Cloud → Shelly Cloud** authorization flow, **not** local MQTT. Confirmed: `ShellyPluginMixin`, `changeShellyDeviceStatus`, `changeShellyPlugSwitch`, `_isShellyPlugWithAuth`. The `ShellyProDevice` model supports Shelly Pro Meters as smart meters. The `shelly_ctrl_device` API endpoint sends commands through the Anker cloud server.
+Strings suggest Shelly devices are controlled via **Anker Cloud → Shelly Cloud** flow, **not** local MQTT. Found: `ShellyPluginMixin`, `changeShellyDeviceStatus`, `changeShellyPlugSwitch`, `_isShellyPlugWithAuth`. `ShellyProDevice` class name found. The `shelly_ctrl_device` API endpoint appears to route through the Anker cloud.
 
-### EV Charger (A5190/A5191) Concrete Findings
+### EV Charger (A5190/A5191) Strings Found
 
-- **RFID**: Full card management (add/delete/read) via BLE and API
-- **OCPP**: Full Open Charge Point Protocol support with internal/third-party server switching
-- **Connector Lock**: `ChargingConnectorLockMenuController` with configuration
-- **Dynamic Load Balancing**: `A5190LoadBalancingModel`, `dynamicLoadBalancing` field
-- **Enode API Vehicle Integration**: `enode_vehicle_id`, `isConnectedToEnodeapi` — vehicles managed through Enode platform
-- **Tamper Proof**: `tamper_proof` field with push notification alerts
-- **A5191 wired ethernet**: Network cable support (not just WiFi)
+- **RFID**: Card management class names found (add/delete/read) via BLE and API
+- **OCPP**: OCPP-related strings found (internal/third-party server switching)
+- **Connector Lock**: `ChargingConnectorLockMenuController` string found
+- **Dynamic Load Balancing**: `A5190LoadBalancingModel`, `dynamicLoadBalancing` strings found
+- **Enode Vehicle API**: `enode_vehicle_id`, `isConnectedToEnodeapi` strings found
+- **Tamper Proof**: `tamper_proof` field name found
+- **A5191 wired ethernet**: Network cable strings found
 
 ### IoT SDK Command Namespace (`akiot.*`)
 
-The APK uses an internal IoT SDK with 40+ commands:
+~40+ `akiot.*` command name strings found in the binary:
 - **BLE**: `akiot.ble.connect_device`, `write_characteristic`, `set_ble_state`
 - **MQTT**: `akiot.mqtt.connect_mqtt`, `publish_message`, `subscribe_topic`
 - **Device**: `akiot.device.invoke_action`, `read_property`, `write_property`, `fetch_device_info`
@@ -955,16 +955,16 @@ Device-specific BLE read/write commands discovered:
 - `prop_read_oil_engine_and_PPS_linkage_information` — generator/PPS link
 - `prop_write_evcharger`, `prop_write_green_energy_priority`, `prop_write_load_balancing`, `prop_write_ocpp_info`, `prop_write_rfid`
 
-### Statistics
+### Counts (from `strings` output — not verified)
 
-| Metric | Count |
-|--------|-------|
-| Dart model classes with `.fromJson` | **763** |
-| Device models identified | **60+** (with sub-variants) |
-| Per-device MQTT decoders | **11** |
-| IoT SDK commands (`akiot.*`) | **40+** |
-| BLE property commands | **15+** |
-| Confirmed power flow field names | **30+** |
+| What | Count |
+|------|-------|
+| Dart class names matching `.fromJson` | ~763 |
+| Device model strings (A-series) | ~60+ |
+| MQTT decoder function name patterns | 11 |
+| `akiot.*` command name strings | ~40+ |
+| BLE property command strings | ~15+ |
+| Power flow field name strings | ~30+ |
 
 ---
 

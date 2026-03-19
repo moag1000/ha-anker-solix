@@ -1,4 +1,4 @@
-# Anker APK v3.18.0 — Analyse-Notizen (ungeprüft)
+# Anker APK v3.18.0 — Analysis Notes (unverified)
 
 > **Binary**: `libapp.so` (56 MB compiled Dart) from `com.anker.charging` v3.18.0 (build 160)
 > **Date**: 2026-03-19
@@ -557,7 +557,7 @@ v2/anka/history/update_msg
 
 ---
 
-## 3. Confirmed Response Field Names (by Feature)
+## 3. Field Names Found in Binary (by Feature)
 
 ### Range Extender System
 ```
