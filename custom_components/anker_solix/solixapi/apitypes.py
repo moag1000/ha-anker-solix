@@ -191,6 +191,63 @@ API_ENDPOINTS: Final[dict] = {
     "charger_get_statistics": "mini_power/v1/app/power/get_day_power_data",  # {"device_sn": deviceSn, "device_model": "A2345", "date": "2025-02-27"}
     "charger_get_device_setting": "mini_power/v1/app/setting/get_device_setting",  # {"device_sn": deviceSn}
     "charger_get_screensavers": "mini_power/v1/app/style/get_clock_screensavers",  # works for {"device_sn": deviceSn, "product_code": "A2345"} => Prime charger
+    # Range Extender System (A7320) endpoints
+    "get_extender_system_list": "power_service/v1/app/get_extender_system_list",  # List all range extender systems
+    "get_extender_system_detail": "power_service/v1/app/get_extender_system_detail",  # Get detail for one range extender system
+    "add_extender_system": "power_service/v1/app/add_extender_system",  # Add a new range extender system
+    "del_extender_system": "power_service/v1/app/del_extender_system",  # Delete a range extender system
+    "update_extender_system_strategy": "power_service/v1/app/update_extender_system_strategy",  # Update strategy for range extender system
+    "get_extender_system_cumulative_data": "power_service/v1/app/get_extender_system_cumulative_data",  # Get cumulative energy data for range extender system
+    "set_extender_system_name": "power_service/v1/app/set_extender_system_name",  # Set name for range extender system
+    "add_extender_system_device_list": "power_service/v1/app/add_extender_system_device_list",  # List devices that can be added to range extender system
+    "batch_add_extender_system_device": "power_service/v1/app/batch_add_extender_system_device",  # Batch add devices to range extender system
+    "batch_del_extender_system_device": "power_service/v1/app/batch_del_extender_system_device",  # Batch remove devices from range extender system
+    "get_extender_system_pn_ota": "power_service/v1/app/get_extender_system_pn_ota",  # Get OTA info for range extender system devices
+    "set_extender_system_cumulative_data": "power_service/v1/app/set_extender_system_cumulative_data",  # Set cumulative data for range extender system
+    # Useful lookups
+    "get_site_detail_by_sn": "power_service/v1/site/get_site_detail_by_sn",  # Reverse lookup site by device serial number
+    "get_all_service_config": "power_service/v1/get_all_service_config",  # Get all service configuration
+    "get_message_sn_list": "power_service/v1/get_message_sn_list",  # Get list of message-enabled device serial numbers
+    # Location services (for weather-based features)
+    "get_device_location": "charging_common_svc/location/get",  # Get device location (longitude, latitude, country_code, etc.)
+    "set_device_location": "charging_common_svc/location/set",  # Set device location
+    "check_location_support": "charging_common_svc/location/support",  # Check if location is supported
+    # Electrician/installer management
+    "add_electrician": "power_service/v1/site/electrician/add",  # Add electrician/installer to site
+    "get_electrician": "power_service/v1/site/electrician/get",  # Get electrician/installer info for site
+    # Device management
+    "get_device_bind_details": "power_service/v1/app/get_device_bind_details",  # Get device binding details
+    "get_strategy_last_record": "power_service/v1/app/get_strategy_last_record",  # Get last strategy record for device
+    "site_data_exported": "power_service/v1/site/site_data_exported",  # Export site data
+    # Batch OTA
+    "batch_check_update": "app/ota/batch/check_update",  # Batch check for firmware updates
+    # Device relation management
+    "relate_device": "app/devicerelation/relate_device",  # Relate/bind a device
+    "get_shared_device_relation": "app/devicerelation/get_shared_device",  # Get shared device relation details
+    "update_device_alias": "app/devicerelation/up_alias_name",  # Update device alias name
+    # VPP / Evergen endpoints (APK: com.anker.charging/vpp/)
+    "vpp_get_enrollment_status": "power_service/v1/app/vpp/get_enrollment_status",  # Get VPP enrollment status for site
+    "vpp_enrollment_verification": "power_service/v1/app/vpp/enrollment_verification",  # Verify VPP enrollment
+    "vpp_get_policy": "power_service/v1/app/vpp/get_policy",  # Get VPP policy details
+    "vpp_dispatch_control": "power_service/v1/app/vpp/dispatch_control",  # VPP dispatch control command
+    "vpp_get_dispatch_history": "power_service/v1/app/vpp/get_dispatch_history",  # Get VPP dispatch history
+    # Dynamic pricing endpoints (APK: Nordpool + Tibber)
+    "get_dynamic_price_plan": "power_service/v1/dynamic_price/get_plan",  # Get dynamic price plan for site
+    "set_dynamic_price_plan": "power_service/v1/dynamic_price/set_plan",  # Set dynamic price plan for site
+    "get_dynamic_price_rates": "power_service/v1/dynamic_price/get_rates",  # Get dynamic price rates
+    "check_dynamic_price_adjust": "power_service/v1/dynamic_price/check_adjust",  # Check dynamic price adjustment status
+    "get_dynamic_price_provider_list": "power_service/v1/dynamic_price/get_providers",  # Get list of dynamic price providers
+    # EV charger order/session endpoints
+    "get_charging_order_list": "power_service/v1/app/order/get_charging_order_list",  # Get all charging orders in range, {"device_sn": deviceSn, "start_time": "2026-02-09"}
+    "get_charging_order_detail": "power_service/v1/app/order/get_charging_order_detail",  # Data points for charts of order, {"device_sn": deviceSn, "order_id": orderId}
+    "export_charge_order": "power_service/v1/app/order/export_charge_order",  # Export charge order data
+    # Monthly/annual reports
+    "get_annual_report": "power_service/v1/app/get_annual_report",  # Get annual report starting Jan 2025
+    "get_monthly_report_list": "power_service/v1/app/mothly_report_list",  # List existing monthly reports (typo is intentional - matches Anker API)
+    "get_monthly_report_configs": "power_service/v1/app/get_monthly_report_configs",  # Get monthly report message configs
+    "set_monthly_report_configs": "power_service/v1/app/set_monthly_report_configs",  # Configure monthly report messages
+    # Micro inverter status
+    "get_mi_status": "charging_pv_svc/getMiStatus",  # Get micro inverter status
 }
 
 """Following are the Anker Power/Solix Cloud API charging_energy_service endpoints known so far. They are used for Power Panels."""
@@ -228,6 +285,15 @@ API_HES_SVC_ENDPOINTS: Final[dict] = {
     "report_device_data": "charging_hes_svc/report_device_data",  # no shared account access, needs HES site and installer system?
     "get_evcharger_standalone": "charging_hes_svc/get_user_bind_and_not_in_station_evchargers",  # works as member, but list may be empty
     "get_evcharger_station_info": "charging_hes_svc/get_evcharger_station_info",  # works as member, {"evChargerSn": deviceSn, "featuretype": 1}, featuretype [1,2]
+    # AI EMS enhancements via HES path
+    "authorize_aiems": "charging_hes_svc/authorize_aiems",  # Authorize AI EMS for site
+    "enable_aiems_mode4": "charging_hes_svc/enable_aiems_mode4",  # Enable AI EMS mode 4
+    "get_aiems_profit": "charging_hes_svc/get_aiems_profit",  # Get AI EMS profit via HES path
+    # Auto disaster preparedness endpoints (APK: storm guard)
+    "get_auto_disaster_status": "charging_hes_svc/get_auto_disaster_prepare_status",  # Get auto disaster preparedness status
+    "get_auto_disaster_detail": "charging_hes_svc/get_auto_disaster_prepare_detail",  # Get auto disaster preparedness detail
+    "get_current_disaster_detail": "charging_hes_svc/get_current_disaster_prepare_detail",  # Get current disaster preparedness detail
+    "get_backup_history": "charging_hes_svc/get_back_up_history",  # Get backup history for disaster preparedness
 }
 
 """ Other endpoints neither implemented nor explored: 83 + 72 used => 155
@@ -602,6 +668,72 @@ API_FILEPREFIXES: Final[dict] = {
     "hes_report_device_data": "hes_report_device_data",
     "hes_get_evcharger_standalone": "hes_evcharger_standalone",
     "hes_get_evcharger_station_info": "hes_evcharger_station_info",
+    # Range Extender System file prefixes
+    "get_extender_system_list": "extender_system_list",
+    "get_extender_system_detail": "extender_system_detail",
+    "add_extender_system": "add_extender_system",
+    "del_extender_system": "del_extender_system",
+    "update_extender_system_strategy": "extender_system_strategy",
+    "get_extender_system_cumulative_data": "extender_system_cumulative_data",
+    "set_extender_system_name": "set_extender_system_name",
+    "add_extender_system_device_list": "add_extender_system_device_list",
+    "batch_add_extender_system_device": "batch_add_extender_system_device",
+    "batch_del_extender_system_device": "batch_del_extender_system_device",
+    "get_extender_system_pn_ota": "extender_system_pn_ota",
+    "set_extender_system_cumulative_data": "set_extender_system_cumulative_data",
+    # Lookup file prefixes
+    "get_site_detail_by_sn": "site_detail_by_sn",
+    "get_all_service_config": "all_service_config",
+    "get_message_sn_list": "message_sn_list",
+    # Location file prefixes
+    "get_device_location": "device_location",
+    "set_device_location": "set_device_location",
+    "check_location_support": "location_support",
+    # Electrician file prefixes
+    "add_electrician": "add_electrician",
+    "get_electrician": "electrician",
+    # Device management file prefixes
+    "get_device_bind_details": "device_bind_details",
+    "get_strategy_last_record": "strategy_last_record",
+    "site_data_exported": "site_data_exported",
+    # Batch OTA file prefixes
+    "batch_check_update": "batch_check_update",
+    # Device relation file prefixes
+    "relate_device": "relate_device",
+    "get_shared_device_relation": "shared_device_relation",
+    "update_device_alias": "update_device_alias",
+    # HES AI EMS file prefixes
+    "hes_authorize_aiems": "hes_authorize_aiems",
+    "hes_enable_aiems_mode4": "hes_enable_aiems_mode4",
+    "hes_get_aiems_profit": "hes_aiems_profit",
+    # VPP / Evergen file prefixes
+    "vpp_get_enrollment_status": "vpp_enrollment_status",
+    "vpp_enrollment_verification": "vpp_enrollment_verification",
+    "vpp_get_policy": "vpp_policy",
+    "vpp_dispatch_control": "vpp_dispatch_control",
+    "vpp_get_dispatch_history": "vpp_dispatch_history",
+    # Dynamic pricing file prefixes
+    "get_dynamic_price_plan": "dynamic_price_plan",
+    "set_dynamic_price_plan": "set_dynamic_price_plan",
+    "get_dynamic_price_rates": "dynamic_price_rates",
+    "check_dynamic_price_adjust": "dynamic_price_adjust",
+    "get_dynamic_price_provider_list": "dynamic_price_provider_list",
+    # EV charger order file prefixes
+    "get_charging_order_list": "charging_order_list",
+    "get_charging_order_detail": "charging_order_detail",
+    "export_charge_order": "export_charge_order",
+    # Monthly/annual report file prefixes
+    "get_annual_report": "annual_report",
+    "get_monthly_report_list": "monthly_report_list",
+    "get_monthly_report_configs": "monthly_report_configs",
+    "set_monthly_report_configs": "set_monthly_report_configs",
+    # Micro inverter file prefixes
+    "get_mi_status": "mi_status",
+    # HES disaster preparedness file prefixes
+    "hes_get_auto_disaster_status": "hes_auto_disaster_status",
+    "hes_get_auto_disaster_detail": "hes_auto_disaster_detail",
+    "hes_get_current_disaster_detail": "hes_current_disaster_detail",
+    "hes_get_backup_history": "hes_backup_history",
 }
 
 
