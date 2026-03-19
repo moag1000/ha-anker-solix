@@ -8,6 +8,12 @@
 > Use at your own risk. Endpoints may change, break, or behave differently than
 > expected. The BLE protocol in particular has only been tested via SolixBLE
 > reference implementations, not in a production HA environment.
+>
+> **CRITICAL LIMITATION**: All three reference projects (SolixBLE, AnkerSolixBLE,
+> HaSolixBLE) confirm that **BLE and WiFi are mutually exclusive** on current Anker
+> firmware — once a device connects to WiFi, BLE is disabled. This severely limits
+> BLE as a cloud-outage fallback for WiFi-connected devices. See
+> [Known Limitations](#known-limitations--honest-assessment) for full details.
 
 > Branch: `feat/ble-and-local-features`
 > Status: **Experimental / Work in Progress**
@@ -256,6 +262,141 @@ The following improvements were made to the MQTT module (`mqtt.py`):
 
 ---
 
+## Known Limitations / Honest Assessment
+
+This section documents what we know does NOT work or is unverified, based on
+cross-referencing our APK analysis with all three reference BLE projects and
+real-world user reports.
+
+### 1. BLE + WiFi Mutual Exclusion (CRITICAL)
+
+**All tested devices disable BLE once WiFi is connected.** This is confirmed
+independently by every developer who has tested it:
+
+> *"you can have WiFi or Bluetooth but not both"* — flip-dots (SolixBLE author, C300X/C1000X)
+>
+> *"Same with my Solarbank, no BT if wifi connected"* — thomluther (ha-anker-solix maintainer, SB Gen1)
+>
+> *"In order to see BT I had to disable my wifi access point"* — gitTinker (F3800)
+>
+> *"It is not possible to use Bluetooth and Wi-Fi at the same time"* — HaSolixBLE README
+
+**Impact**: The typical Solarbank user has WiFi connected (required for cloud/MQTT).
+This means BLE is NOT available during normal operation and cannot serve as a
+real-time cloud-outage fallback.
+
+**When BLE IS available:**
+- During initial device setup (before WiFi provisioning)
+- On devices without WiFi (portable power stations used off-grid)
+- After manual BLE re-activation (IoT button press, device reboot)
+- Possibly on newer firmware versions that support dual-mode (unconfirmed)
+
+**Open question**: The Anker APK includes a parallel `AKIoT_BLE` SDK alongside
+WiFi, suggesting Anker designed for BLE+WiFi coexistence. It is possible that
+newer Solarbank firmware (SB2 Pro, SB3) enables dual-mode, but no one has
+confirmed this yet.
+
+### 2. BLE Range and ESP32 Proxy Mitigation
+
+Even when BLE is available, range is limited (~10m indoor). For Solarbank
+installations (roof, garden, cellar), a BLE proxy is likely required.
+
+**Recommended: ESPHome Bluetooth Proxy on ESP32**
+
+The same approach used in [beurer_daylight_lamps](https://github.com/moag1000/beurer_daylight_lamps):
+
+- ESPHome's `bluetooth_proxy` component turns an ESP32 into a BLE relay
+- HA's bluetooth stack (`habluetooth`) treats proxies as first-class scanners
+- `bleak-retry-connector`'s `establish_connection()` works transparently through proxies
+- RSSI-ranked adapter selection: HA picks the proxy with strongest signal
+- **Application-layer encryption (ECDH/AES) works transparently** — proxy relays raw GATT bytes
+
+**ESP32 setup for Solix BLE:**
+```yaml
+# ESPHome configuration
+bluetooth_proxy:
+  active: true
+  connection_slots: 3  # default, max 9
+  cache_services: true
+```
+
+**Hardware notes:**
+- Use **ESP32-S3** or **ESP32-WROOM-32** (dual-core, handles WiFi+BLE)
+- **Avoid ESP32-C3/C6** (single-core RISC-V, cannot handle WiFi+BLE under load)
+- Use `esp-idf` framework (not Arduino) for better memory efficiency
+- Place proxy within ~10m of the Solarbank, at least 3m from routers/switches
+- BLE 4.2 devices may need `CONFIG_BT_BLE_50_FEATURES_SUPPORTED: n` in SDKConfig
+
+### 3. Unvalidated BLE Command Opcodes
+
+**None of the 40 command opcodes have been tested against a real device.**
+
+| Category | Count | Status | Risk |
+|----------|-------|--------|------|
+| GET commands (read-only) | 25 | **Safe to try** — no side effects, worst case: no response | Low |
+| SET commands | 12 | **DO NOT USE without device testing** — could misconfigure device | High |
+| Telemetry TLV tags (passive) | 26 | **Verified** by SolixBLE on C300X/C1000X | Validated |
+
+The opcode values (e.g., `GET_BATTERY_INFO = 0x7109`, `SET_MIN_SOC = 0x7304`)
+are inferred from APK Dart class naming patterns, NOT from captured BLE traffic
+or decompiled Dart source code. No `libapp.so` string dumps or Ghidra analysis
+exists in this repo to independently verify these numbers.
+
+### 4. SET Command Data Mismatches vs MQTT
+
+Cross-referencing BLE SET commands against the MQTT command map (`mqttcmdmap.py`)
+revealed systematic discrepancies:
+
+| Issue | Commands Affected | Detail |
+|-------|-------------------|--------|
+| **Endianness** | All SET commands with uint16 | BLE uses big-endian (`!H`), MQTT uses little-endian (`sile`). Correct for BLE TLV, but byte values differ from MQTT. |
+| **Value validation** | `set_min_soc` | BLE allows 0-100, MQTT only [5, 10]. SB1 uses completely different linked-triple command. |
+| **Value validation** | `set_power_limit` | BLE allows any W, MQTT allows model-specific discrete: [350,600,800,1000,1200] |
+| **Value validation** | `set_pv_limit` | BLE allows any W, MQTT allows only [2000, 3600] |
+| **Missing fields** | `set_zero_export` | BLE missing MQTT field "a5" (default 0) |
+| **Missing fields** | `set_ems_mode` | BLE missing MQTT field "a3", mode 8 time_slot layout |
+| **Structural** | `set_backup_mode` | Standalone in BLE, sub-case of usage_mode in MQTT |
+| **No MQTT equivalent** | `set_grid_state`, `set_ct_config` | BLE-only, no validation possible via MQTT |
+
+### 5. What IS Verified (Confidence Levels)
+
+| Component | Confidence | Source | Notes |
+|-----------|-----------|--------|-------|
+| GATT UUIDs (3) | HIGH | SolixBLE + APK | Confirmed on multiple devices |
+| TLV telemetry parsing (26 tags) | HIGH | SolixBLE (C300X, C1000X) | Scaling factors validated |
+| ECDH secp256r1 + AES-128-CBC | HIGH | SolixBLE | Works on tested devices |
+| 6-stage negotiation protocol | HIGH | SolixBLE | Stage/response mapping confirmed |
+| Packet framing (FF09, patterns) | HIGH | SolixBLE | Multiple device captures |
+| ECDH private key hex | MEDIUM | SolixBLE (claims APK origin) | Not independently extracted from our APK |
+| Negotiation embedded UUID | MEDIUM | SolixBLE | Unknown if device validates it |
+| GET command opcodes (25) | LOW | APK class naming inference | Zero device-tested |
+| SET command opcodes (12) | LOW | APK + MQTT analogy | Zero device-tested, data mismatches found |
+| SET command field formats | VERY LOW | Derived from MQTT structures | Wrong format could misconfigure device |
+
+### 6. Practical Value Despite Limitations
+
+Despite the BLE+WiFi exclusion, this work is not wasted:
+
+1. **TLV parsing is reusable for MQTT**: thomluther confirmed (Discussion #222) that
+   *"BT and MQTT data structures are the same"* — same `FF09` header, same TLV fields.
+   Our 26-tag parser applies directly to MQTT binary data.
+
+2. **BLE cache works without BLE hardware**: The coordinator bootstrap reads the cache
+   file from disk. If the cache was ever populated (e.g., during setup or with a
+   dedicated BLE-only installation), it provides degraded-mode data on cloud outage.
+
+3. **Off-grid / portable use case**: Power stations (C300, C1000, F3800) used without
+   WiFi benefit fully from BLE telemetry and commands.
+
+4. **Future firmware**: If Anker enables dual-mode BLE+WiFi on newer Solarbank firmware,
+   this implementation is ready.
+
+5. **Protocol foundation**: All infrastructure (crypto, TLV, connection management,
+   coordinator, cache) is production-quality and follows HA best practices. Only the
+   BLE+WiFi exclusion prevents the primary use case.
+
+---
+
 ## Known Opcodes (BLE TLV Commands)
 
 | Family | Opcode Range | Purpose | Example |
@@ -338,5 +479,6 @@ This work would not have been possible without the contributions of several open
 - [ ] Real-device validation of TLV parsing with Solarbank 2 E1600 Pro (A17C1)
 
 ### Resolved / Won't Fix
-- **~~Local LAN fallback (`10.10.100.254` AP mode)~~**: Investigation revealed that AP mode (10.10.100.254) is a **setup-only** feature used during initial WiFi provisioning. It is NOT a runtime data source. The Anker app uses BLE (not LAN) as the local fallback when the cloud API is unavailable. Our BLE coordinator already provides this local fallback capability.
+- **~~Local LAN fallback (`10.10.100.254` AP mode)~~**: Investigation revealed that AP mode (10.10.100.254) is a **setup-only** feature used during initial WiFi provisioning. It is NOT a runtime data source.
+- **~~BLE as real-time cloud fallback for WiFi-connected devices~~**: All three reference projects confirm BLE and WiFi are mutually exclusive on current Anker firmware. BLE cannot serve as a live fallback while WiFi is active. The BLE cache may still provide stale data from a previous BLE session, but live BLE telemetry is not available on WiFi-connected devices. See [Known Limitations](#known-limitations--honest-assessment).
 - **~~Enable cloud-driven MQTT commands~~**: All 7 incomplete/disabled MQTT commands are **write/control operations** that modify device behavior — none are read-only telemetry. Enabling them without real device testing could cause unintended state changes (e.g., switching usage modes, toggling EV charger, changing charge limits). These remain disabled until validated on real hardware. See [API_ENDPOINTS.md § MQTT Command Gaps](API_ENDPOINTS.md#mqtt-command-gaps) for per-command details.

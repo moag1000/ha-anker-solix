@@ -11,10 +11,16 @@ grouped into families:
 Packet format (reverse-engineered from AssembleCmdUtil in Dart):
     [Header (2 bytes)] [Opcode (2 bytes)] [Payload Length (2 bytes)] [TLV Data...] [Checksum]
 
-NOTE: SET command field structures are derived from MQTT command analysis
-(mqttcmdmap.py) and APK reverse engineering. The exact BLE TLV tag mapping
-has NOT been validated against a real device. GET commands with no payload
-are safe; SET commands need device testing before production use.
+WARNING — VALIDATION STATUS:
+- All 40 opcode VALUES are inferred from APK Dart class naming, NOT from
+  captured BLE traffic or decompiled source. Zero have been device-tested.
+- SET command field structures are derived from MQTT command analysis
+  (mqttcmdmap.py). Cross-referencing revealed endianness mismatches (BLE
+  uses big-endian, MQTT uses little-endian) and missing value validation
+  (e.g., MQTT allows only [5,10] for min_soc, BLE allows 0-100).
+- GET commands with no payload are safe to try (no side effects).
+- SET commands MUST NOT be used without real device validation — wrong
+  field formats could misconfigure the device.
 """
 
 from __future__ import annotations

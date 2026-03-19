@@ -4,6 +4,18 @@ Provides local BLE communication as a supplemental/fallback data source
 alongside the cloud API coordinator. Based on patterns from
 beurer_daylight_lamps (moag1000) and SolixBLE (flip-dots).
 
+IMPORTANT LIMITATION: All reference projects (SolixBLE, AnkerSolixBLE,
+HaSolixBLE) confirm that BLE and WiFi are mutually exclusive on current
+Anker firmware. WiFi-connected devices disable BLE. This coordinator is
+primarily useful for:
+  - Off-grid / portable devices (no WiFi)
+  - Initial device setup (before WiFi provisioning)
+  - Manual BLE re-activation (IoT button press)
+  - Future firmware with BLE+WiFi dual-mode support (unconfirmed)
+
+The persistent cache (BleDeviceCache) retains data from previous BLE
+sessions, providing degraded-mode data even when BLE is currently unavailable.
+
 Data origin: Anker APK v3.18.0 reverse engineering + SolixBLE protocol analysis.
 """
 
