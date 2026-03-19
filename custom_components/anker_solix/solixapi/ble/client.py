@@ -118,7 +118,8 @@ class SolixBleDeviceInfo:
     """Parsed telemetry data from a Solix BLE device.
 
     Fields map to TLV keys from the decrypted 253-byte telemetry blob.
-    Scaling factors verified against flip-dots/SolixBLE (Python, little-endian).
+    Scaling factors cross-referenced with flip-dots/SolixBLE (little-endian).
+    Device-tested on C300X and C1000X only; other models unvalidated.
     """
 
     # Identity
@@ -684,7 +685,7 @@ class SolixBleClient:
         """Build SolixBleDeviceInfo from parsed TLV fields.
 
         TLV value convention: value[0] is a type/flags byte, actual data at value[1:].
-        Integer fields use little-endian byte order (confirmed from flip-dots source).
+        Integer fields use little-endian byte order (per flip-dots/SolixBLE).
         """
         info = SolixBleDeviceInfo()
 
@@ -812,15 +813,16 @@ class SolixBleClient:
             self._pending_cmd = None
 
     # ──────────────────────────────────────────────────────────────────
-    # High-level BLE command API
+    # High-level BLE command API (ALL UNVALIDATED)
     #
     # These methods wrap send_command() with proper TLV encoding/decoding.
     # GET commands return parsed dict or None on failure.
     # SET commands return True on success.
     #
-    # NOTE: Response parsing is speculative — response TLV field tags
-    # have not been validated on a real device. The generic dict return
-    # allows callers to inspect raw tag→value mappings regardless.
+    # WARNING: ALL opcode values are inferred from APK class naming —
+    # none have been tested against a real device. GET commands are safe
+    # to try (no side effects). SET commands risk misconfiguring devices.
+    # See tlv.py header for full validation status.
     # ──────────────────────────────────────────────────────────────────
 
     async def send_tlv_command(

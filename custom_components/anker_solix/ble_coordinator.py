@@ -1,20 +1,20 @@
 """BLE coordinator for Anker Solix devices.
 
-Provides local BLE communication as a supplemental/fallback data source
-alongside the cloud API coordinator. Based on patterns from
-beurer_daylight_lamps (moag1000) and SolixBLE (flip-dots).
+Manages local BLE connections and telemetry for Anker Solix devices.
+Based on patterns from beurer_daylight_lamps (moag1000) and SolixBLE (flip-dots).
 
-IMPORTANT LIMITATION: All reference projects (SolixBLE, AnkerSolixBLE,
-HaSolixBLE) confirm that BLE and WiFi are mutually exclusive on current
-Anker firmware. WiFi-connected devices disable BLE. This coordinator is
-primarily useful for:
-  - Off-grid / portable devices (no WiFi)
-  - Initial device setup (before WiFi provisioning)
-  - Manual BLE re-activation (IoT button press)
-  - Future firmware with BLE+WiFi dual-mode support (unconfirmed)
+BLE+WiFi MUTUAL EXCLUSION: Current Anker firmware disables BLE when WiFi
+is connected. Confirmed by SolixBLE, AnkerSolixBLE, and HaSolixBLE projects.
+This coordinator provides value for:
+  - Off-grid / portable devices without WiFi
+  - Initial device setup before WiFi provisioning
+  - Manual BLE re-activation (IoT button press / device reboot)
+  - Future firmware with BLE+WiFi dual-mode (unconfirmed)
+  - Populating the persistent cache for later offline bootstrap
 
-The persistent cache (BleDeviceCache) retains data from previous BLE
-sessions, providing degraded-mode data even when BLE is currently unavailable.
+The BleDeviceCache retains data from any previous BLE session on disk.
+The cloud coordinator can read this cache on startup to show last-known
+values when the cloud API is also unreachable.
 
 Data origin: Anker APK v3.18.0 reverse engineering + SolixBLE protocol analysis.
 """
@@ -51,8 +51,9 @@ STALE_DATA_THRESHOLD: int = 600  # 10 min - consider BLE data stale after this
 class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInfo]]):
     """Coordinate BLE communication with Anker Solix devices.
 
-    Manages multiple BLE connections and provides telemetry data
-    that supplements the cloud API coordinator.
+    Manages multiple BLE connections and provides telemetry data.
+    Writes BLE data into cloud coordinator dict when both are active.
+    Caches all data to disk for offline bootstrap.
     """
 
     def __init__(
@@ -164,15 +165,14 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
         self.async_set_updated_data(self.telemetry_data)
 
     def _push_to_cloud_coordinator(self, info: SolixBleDeviceInfo) -> None:
-        """Write BLE telemetry into cloud coordinator data for entity fallback.
+        """Write BLE telemetry into cloud coordinator data dict.
 
         Maps BLE telemetry fields to the same dict keys that cloud API uses
-        (verified against sensor.py DEVICE_SENSORS json_key values).
-        When the cloud API is unavailable, existing HA entities will show
-        BLE-sourced data instead of going unavailable.
+        (cross-referenced with sensor.py DEVICE_SENSORS json_key values).
+        This only works when BLE is actively connected — which requires
+        WiFi to be disabled on the device (see module docstring).
 
-        Data is written into self._cloud_coordinator.data[serial_number]
-        which is a dict keyed by device serial number.
+        Data is written into self._cloud_coordinator.data[serial_number].
         """
         if not self._cloud_coordinator or not self._cloud_coordinator.data:
             return

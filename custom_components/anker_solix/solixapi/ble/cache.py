@@ -1,12 +1,17 @@
 """Local device state cache for BLE-discovered Anker Solix devices.
 
 Persists device configuration and telemetry snapshots to disk so that
-the integration can continue operating with stale data during cloud outages.
-The cache is JSON-based and stored in the HA config directory.
+the cloud coordinator can bootstrap from last-known data on startup
+when the cloud API is unreachable. The cache is JSON-based and stored
+in the HA config directory.
 
-This is NOT a replacement for the cloud API — it provides degraded-mode
-operation with the last-known device state when both cloud and BLE are
-temporarily unavailable.
+The cache is populated whenever BLE is active (device setup, off-grid
+use, manual BLE activation). Current Anker firmware disables BLE on
+WiFi-connected devices, so the cache may contain data from a previous
+BLE session rather than live data.
+
+This is NOT a replacement for the cloud API — it provides stale data
+as a last resort when no live data source is available.
 """
 
 from __future__ import annotations

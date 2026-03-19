@@ -194,9 +194,13 @@ async def _async_setup_ble(
 ) -> None:
     """Set up BLE coordinator and discovery if bluetooth is available.
 
-    This is optional - the integration works without Bluetooth.
-    BLE provides supplemental local telemetry data as fallback
-    when the cloud API is unavailable.
+    This is optional — the integration works without Bluetooth.
+    BLE provides local telemetry for devices that have BLE active
+    (off-grid use, setup mode, or manual BLE activation). Note that
+    current Anker firmware disables BLE on WiFi-connected devices.
+
+    The BLE cache persists data from previous BLE sessions and can
+    bootstrap the coordinator on startup even without live BLE.
 
     Data origin: Anker APK v3.18.0 + SolixBLE (flip-dots).
     """

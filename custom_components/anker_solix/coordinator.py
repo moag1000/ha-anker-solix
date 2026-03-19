@@ -139,8 +139,10 @@ class AnkerSolixDataUpdateCoordinator(DataUpdateCoordinator):
         """Attempt to bootstrap coordinator data from BLE device cache.
 
         Reads the persistent BLE cache file directly from disk — no BLE
-        coordinator or Bluetooth hardware required. This provides degraded-mode
-        data when the cloud API is unreachable on startup.
+        coordinator or Bluetooth hardware required. The cache contains
+        data from a previous BLE session (e.g., device setup, off-grid use,
+        or manual BLE activation). Current Anker firmware disables BLE on
+        WiFi-connected devices, so this data may be stale.
 
         Returns a coordinator-compatible data dict, or None if no cache exists.
         """
