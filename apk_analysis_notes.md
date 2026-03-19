@@ -1,4 +1,4 @@
-# Anker APK v3.18.0 - Definitive Analysis Reference
+# Anker APK v3.18.0 — Analyse-Notizen (ungeprüft)
 
 > **Binary**: `libapp.so` (56 MB compiled Dart) from `com.anker.charging` v3.18.0 (build 160)
 > **Date**: 2026-03-19
