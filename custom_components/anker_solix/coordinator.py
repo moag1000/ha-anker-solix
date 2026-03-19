@@ -5,6 +5,7 @@ from __future__ import annotations
 from asyncio import TimerHandle, run_coroutine_threadsafe, sleep
 from datetime import datetime, timedelta
 import logging
+from pathlib import Path
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -119,15 +120,100 @@ class AnkerSolixDataUpdateCoordinator(DataUpdateCoordinator):
         ) as exception:
             raise ConfigEntryAuthFailed(exception) from exception
         except AnkerSolixApiClientCommunicationError as exception:
-            # TODO: Evaluate implementation of retry parameter, see
-            # https://developers.home-assistant.io/blog/2025/11/17/retry-after-update-failed
-            # may require HA 2025.12 or later...
-            # raise UpdateFailed(retry_after=60) from exception
+            # When cloud is down and no data exists yet, try BLE cache fallback
+            if not self.data:
+                ble_data = self._try_ble_cache_fallback()
+                if ble_data:
+                    LOGGER.warning(
+                        "Cloud API unavailable, using BLE cache fallback (%d cached devices)",
+                        len(ble_data),
+                    )
+                    return ble_data
             raise UpdateFailed(exception) from exception
         except AnkerSolixApiClientError as exception:
             raise UpdateFailed(exception) from exception
         else:
             return data
+
+    def _try_ble_cache_fallback(self) -> dict | None:
+        """Attempt to bootstrap coordinator data from BLE device cache.
+
+        Reads the persistent BLE cache file directly from disk — no BLE
+        coordinator or Bluetooth hardware required. This provides degraded-mode
+        data when the cloud API is unreachable on startup.
+
+        Returns a coordinator-compatible data dict, or None if no cache exists.
+        """
+        try:
+            from .solixapi.ble.cache import BleDeviceCache  # noqa: PLC0415
+
+            cache = BleDeviceCache(Path(self.hass.config.config_dir))
+            cache.load()
+            all_devices = cache.get_all_devices()
+            if not all_devices:
+                return None
+
+            data: dict[str, Any] = {}
+            for sn, cached in all_devices.items():
+                identity = cached.get("identity", {})
+                telemetry = cached.get("telemetry", {})
+                config = cached.get("config", {})
+                ts = telemetry.get("_timestamp", 0)
+
+                # Build minimal device dict matching sensor.py json_key values
+                device: dict[str, Any] = {
+                    "type": "device",
+                    "device_sn": sn,
+                    "name": identity.get("model", f"Solix {sn[-4:]}"),
+                    "device_pn": identity.get("model", ""),
+                    "site_id": identity.get("site_id", ""),
+                    "status_desc": "offline_cached",
+                    "_ble_source": True,
+                    "_ble_cache_only": True,
+                    "_ble_cache_age": int(
+                        __import__("time").time() - ts
+                    ) if ts else -1,
+                }
+
+                # Map cached telemetry to sensor.py json_key names
+                field_map = {
+                    "battery_soc": "battery_soc",
+                    "solar_power": "solar_power_1",
+                    "ac_power": "ac_power",
+                    "battery_temperature": "temperature",
+                    "discharge_power": "bat_discharge_power",
+                    "charge_power": "bat_charge_power",
+                    "grid_to_home_power": "grid_to_home_power",
+                    "pv_to_grid_power": "photovoltaic_to_grid_power",
+                    "house_demand": "home_load_power",
+                    "power_out": "output_power",
+                }
+                for cache_key, sensor_key in field_map.items():
+                    val = telemetry.get(cache_key)
+                    if val is not None:
+                        device[sensor_key] = str(val)
+
+                # Add cached config values
+                if config.get("min_soc") is not None:
+                    device["preset_system_output_power"] = str(config["min_soc"])
+                if config.get("power_limit") is not None:
+                    device["set_output_power"] = str(config["power_limit"])
+
+                data[sn] = device
+
+            LOGGER.info(
+                "BLE cache fallback loaded %d devices (cache age: %s)",
+                len(data),
+                ", ".join(
+                    f"{sn[-4:]}={d.get('_ble_cache_age', '?')}s"
+                    for sn, d in data.items()
+                ),
+            )
+            return data
+
+        except Exception:  # noqa: BLE001
+            LOGGER.debug("BLE cache fallback failed", exc_info=True)
+            return None
 
     async def async_refresh_data_from_apidict(self, delayed: bool = False) -> None:
         """Update data from client api dictionaries without resetting update interval.

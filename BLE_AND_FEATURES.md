@@ -328,6 +328,8 @@ This work would not have been possible without the contributions of several open
 - [x] BLE local cache: `BleDeviceCache` persists identity/config/telemetry/schedule to JSON, loaded on init, saved on shutdown
 - [x] BLE coordinator cache integration: auto-queries device config on fresh connection, caches telemetry on every update, exposes `get_cached_device()` for degraded-mode operation
 - [x] Missing `import struct` fix in `client.py` (used by `send_tlv_command`)
+- [x] Cloud outage resilience: `coordinator.py` bootstraps from BLE cache when cloud API is unreachable on startup (no BLE hardware needed, reads cache file directly)
+- [x] BLE coordinator creates stub device entries in cloud coordinator for devices not yet known to cloud (enables BLE-only entity creation during outages)
 
 ### Pending
 - [ ] BLE entity platform: Create dedicated HA sensor entities from BLE-only telemetry fields (grid import/export energy, per-MPPT details, firmware versions, consumed energy) — currently BLE supplements existing cloud entities via overlay

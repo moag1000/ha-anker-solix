@@ -166,13 +166,24 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
             return
 
         sn = info.serial_number
-        if not sn or sn not in self._cloud_coordinator.data:
-            LOGGER.debug(
-                "BLE device SN %s not found in cloud coordinator data (known: %s)",
+        if not sn:
+            return
+
+        if sn not in self._cloud_coordinator.data:
+            # Device not in cloud data — create a minimal entry so entities
+            # can be created from BLE data during cloud outage
+            LOGGER.info(
+                "BLE device SN %s not in cloud data, creating stub entry (known: %s)",
                 sn,
                 list(self._cloud_coordinator.data.keys())[:5],
             )
-            return
+            self._cloud_coordinator.data[sn] = {
+                "type": "device",
+                "device_sn": sn,
+                "name": f"Solix {sn[-4:]}",
+                "status_desc": "ble_only",
+                "_ble_source": True,
+            }
 
         # Build overlay using exact keys from sensor.py DEVICE_SENSORS
         ble_overlay: dict[str, str | bool] = {}
