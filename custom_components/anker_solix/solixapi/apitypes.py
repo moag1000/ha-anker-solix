@@ -296,13 +296,16 @@ API_HES_SVC_ENDPOINTS: Final[dict] = {
     "get_backup_history": "charging_hes_svc/get_back_up_history",  # Get backup history for disaster preparedness
 }
 
-""" Other endpoints neither implemented nor explored: 83 + 72 used => 155
+""" Other endpoints neither implemented nor explored: ~170 not used + 163 used => ~333
+NOTE: Endpoints now in the active dicts above were removed from this list.
+Endpoints marked with APK: were found in libapp.so strings (Anker App v3.18.0) but not yet tested.
+
+power_service related: 51 + 117 used
     'power_service/v1/get_message_not_disturb',  # get do not disturb messages settings
     'power_service/v1/message_not_disturb',  # change do not disturb messages settings
     'power_service/v1/read_message', # payload format unknown
     'power_service/v1/add_message',
     'power_service/v1/del_message',
-    'power_service/v1/dynamic_price/check_adjust',  # works for members, but only applies on owned devices?, not sure what it does, {}, lists owned SB3 device with status code but also others
     'power_service/v1/rfid/save_device_card',
     'power_service/v1/rfid/delete_device_card',
     'power_service/v1/site/can_create_site',
@@ -339,11 +342,8 @@ API_HES_SVC_ENDPOINTS: Final[dict] = {
     'power_service/v1/app/group/save_group_devices',
     'power_service/v1/app/group/force_save_group_devices',
     'power_service/v1/app/group/delete_group_devices',
-    'power_service/v1/app/order/get_charging_order_list',  # may need member EV_Charger, Get all orders in range, {"device_sn": deviceSn, "start_time": "2026-02-09"}
-    'power_service/v1/app/order/get_charging_order_detail',  # # Data points for charts of order, also vehicle details {"device_sn": deviceSn, "order_id": orderId}
     'power_service/v1/app/order/get_charging_order_sec_detail',  # may need real EV_Charger? {"order_id": orderId,"start_time": <timestamp>}
     'power_service/v1/app/order/get_charging_order_sec_preview',  # may need real EV_Charger? {"order_id": orderId}
-    'power_service/v1/app/order/export_charge_order',
     'power_service/v1/app/after_sale/get_popup',  # works as site member, {"site_id": siteId}, get active pop ups with code
     'power_service/v1/app/after_sale/check_popup',
     'power_service/v1/app/after_sale/check_sn',  # checks whether any account device SN is eligible for replacement of battery (recall programs?)
@@ -358,14 +358,10 @@ API_HES_SVC_ENDPOINTS: Final[dict] = {
     2*"power_service/v1/app/user/set_user_param",
     'power_service/v1/app/whitelist/feature/check', # Unclear what this is used for, requires check_list with objects for unknown feature_code e.g. {"check_list": [{"feature_code": "smartmeter", "product_code": "A17C5"}]}
     'power_service/v1/app/get_phonecode_list',
-    'power_service/v1/app/get_annual_report',  # new report starting Jan 2025?
     'power_service/v1/app/report_tlv_event',  # tamper event? unknown what events to report, {"device_sn": deviceSn, "events": [{}]}
     'power_service/v1/app/shelly_ctrl_device', # {"device_sn": deviceSn, "op_type": "parameter", "value": value})) # Control shelly device settings, may require owner, usage known
     'power_service/v1/app/upgrade_event_report', # post an entry to upgrade event report
     'power_service/v1/app/mothly_report_show',  # This is no typo in the endpoint! Get link to actual html report, but App is required to view
-    'power_service/v1/app/mothly_report_list',  # This is no typo in the endpoint! List existing monthly reports {"site_id": siteId}
-    'power_service/v1/app/get_monthly_report_configs', # get the monthly report messages {"site_id": siteId}
-    'power_service/v1/app/set_monthly_report_configs', # configure the monthly report messages
     'power_service/v1/app/get_device_last_exercise_log' # {"device_sn": deviceSn, "exercise_type": 3}
     'power_service/v1/app/get_device_exercise_log' # {"device_sn": deviceSn, "exercise_type": 3, "page": 3, "page_size": 80}
     'power_service/v1/app/get_parts_maintenance_logs'
@@ -382,19 +378,23 @@ API_HES_SVC_ENDPOINTS: Final[dict] = {
     'power_service/v1/app/set_oil_consumption_reminder_plan'
     'power_service/v1/app/set_maintain_parts_ignore_reminders'
 
-related to micro inverter without system: 1 + 6 used => 7 total
-    'charging_pv_svc/getMiStatus',
+APK: power_service/v2 endpoints (found in libapp.so strings, untested): 5 + 0 used => 5 total
+    'power_service/v2/get_hardware_relation',  # APK: device hardware relation query
+    'power_service/v2/set_custom_branch_icon',  # APK: custom branch circuit icon
+    'power_service/v2/set_device_pv_naming',  # APK: PV panel naming
+    'power_service/v2/get_region_code',  # APK: region code lookup
+    'power_service/v2/energy_analysis',  # APK: v2 energy analysis (replaces v1?)
 
-App related: 18 + 3 used => 21 total
+related to micro inverter without system: 0 + 7 used => 7 total
+
+App related: 15 + 6 used => 21 total
     'app/devicemanage/update_relate_device_info',
     'app/cloudstor/get_app_up_token_general',
     'app/cloudstor/get_app_up_token_without_login',
     'app/logging/get_device_logging',
     'app/logging/upload',
     'app/logging/upload_pb_events',
-    'app/devicerelation/up_alias_name',  # Update Alias name of device? Fails with (10003) Failed to request
     'app/devicerelation/un_relate_and_unbind_device',
-    'app/devicerelation/relate_device',
     'app/devicerelation/device_invite', # Sharing of EV charger devices, {"nick_name": "lol***", "email": "<email>", "invites": [{"device_sn": deviceSn, "member_type": 1}]}
     'app/devicerelation/confirm_invite', # accept invite
     'app/devicerelation/ignore_invite',
@@ -444,11 +444,7 @@ PPS and Power Panel related: 6 + 12 used => 18 total
     "charging_energy_service/ack_utility_rate_plan",
     "charging_energy_service/adjust_station_price_unit",
 
-    "charging_common_svc/location/get",  # Get default and identifier location for identifier_id, identifier_type, business_type with longitude, latitude, country_code, place_id, display_name, formatted_address
-    "charging_common_svc/location/set",  # Set default and identifier location
-    "charging_common_svc/location/support",
-
-Home Energy System related (X1): 44 + 20 used => 64 total
+Home Energy System related (X1): 37 + 27 used => 64 total
     "charging_hes_svc/adjust_station_price_unit",
     "charging_hes_svc/cancel_pop",
     "charging_hes_svc/check_update",
@@ -458,10 +454,6 @@ Home Energy System related (X1): 44 + 20 used => 64 total
     "charging_hes_svc/device_self_check",
     "charging_hes_svc/deal_share_data",
     "charging_hes_svc/download_energy_statistics",
-    "charging_hes_svc/get_auto_disaster_prepare_status",
-    "charging_hes_svc/get_auto_disaster_prepare_detail",
-    "charging_hes_svc/get_back_up_history",
-    "charging_hes_svc/get_current_disaster_prepare_detail",
     "charging_hes_svc/get_device_command",
     "charging_hes_svc/get_device_pn_info",
     "charging_hes_svc/get_device_card_list",
@@ -496,15 +488,15 @@ Home Energy System related (X1): 44 + 20 used => 64 total
     "charging_hes_svc/share_device/invite_installer_member",
     "charging_hes_svc/share_device/get_installer_invited_list",
 
-Home Energy System related (X1): 7 + 0 used => 7 total
+HES dynamic pricing related: 6 + 0 used => 6 total
     "charging_hes_dynamic_price_svc/get_area_by_code", # needs owner
     "charging_hes_dynamic_price_svc/get_price_company", # needs owner
     "charging_hes_dynamic_price_svc/get_price", # needs owner
     "charging_hes_dynamic_price_svc/save_time_of_use", # needs owner
     "charging_hes_dynamic_price_svc/save_dynamic_price", # needs owner
-    "charging_hes_dynamic_price_svc/get_third_jump_url"
+    "charging_hes_dynamic_price_svc/get_third_jump_url",
 
-related to what, seem to work with Power Panel sites: 7 + 0 used => 7 total
+Power Panel disaster preparedness: 7 + 0 used => 7 total
     'charging_disaster_prepared/get_site_device_disaster', # {"identifier_id": siteId, "type": 2})) # works with Power panel site and shared account
     'charging_disaster_prepared/get_site_device_disaster_status', # {"identifier_id": siteId, "type": 2})) # works with Power panel site and shared account
     'charging_disaster_prepared/set_site_device_disaster',
@@ -513,7 +505,7 @@ related to what, seem to work with Power Panel sites: 7 + 0 used => 7 total
     'charging_disaster_prepared/get_support_func', # {"identifier_id": siteId, "type": 2})) # works with Power panel site and shared account
     'charging_disaster_prepared/disaster_detail',
 
-related to Prime charger models: 8 + 9 used => 17 total
+related to Prime charger models: 12 + 5 used => 17 total
     'mini_power/v1/app/charging/update_charging_mode',
     'mini_power/v1/app/charging/add_charging_mode',
     'mini_power/v1/app/charging/delete_charging_mode',
@@ -526,6 +518,10 @@ related to Prime charger models: 8 + 9 used => 17 total
     'mini_power/v1/app/style/delete_manual_clock_screensavers',
     'mini_power/v1/app/style/get_url',
     'mini_power/v1/app/style/set_manual_clock_screensaver_name',
+
+APK: Fault/alarm messaging service (found in libapp.so strings, untested): 2 + 0 used => 2 total
+    'charging_imsg_svc/get_fault_list',  # APK: get fault/alarm list for device
+    'charging_imsg_svc/get_alarm_list',  # APK: get alarm list for device
 
 Structure of the JSON response for an API Login Request:
 An unexpired token_id must be used for API request, along with the gtoken which is an MD5 hash of the returned(encrypted) user_id.
