@@ -28,6 +28,7 @@ from homeassistant.helpers.device_registry import DeviceEntry
 
 from . import api_client
 from .config_flow import (
+    BLE_USAGE_DEF,
     CONF_API_OPTIONS,
     CONF_ENDPOINT_LIMIT,
     CONF_MQTT_OPTIONS,
@@ -52,6 +53,8 @@ from .config_flow import (
     async_check_and_remove_devices,
 )
 from .const import (
+    CONF_BLE_OPTIONS,
+    CONF_BLE_USAGE,
     DOMAIN,
     EXAMPLESFOLDER,
     INTERVALMULT,
@@ -197,6 +200,16 @@ async def _async_setup_ble(
 
     Data origin: Anker APK v3.18.0 + SolixBLE (flip-dots).
     """
+    # Check if BLE usage is enabled in options (default: disabled)
+    if not entry.options.get(CONF_BLE_OPTIONS, {}).get(CONF_BLE_USAGE, BLE_USAGE_DEF):
+        LOGGER.debug("BLE usage disabled in options, skipping BLE setup")
+        return
+
+    # Only one BLE coordinator per integration (shared across config entries)
+    if hass.data[DOMAIN].get(BLE_COORDINATOR):
+        LOGGER.debug("BLE coordinator already active, skipping duplicate setup")
+        return
+
     try:
         from homeassistant.components import bluetooth  # noqa: PLC0415
     except ImportError:

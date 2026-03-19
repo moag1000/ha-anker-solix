@@ -163,6 +163,16 @@
                             "trigger_timeout": "Devices publish real time data only if triggered. The timeout is the publish duration if not triggered again."
                         }
                     },
+                    "ble_options": {
+                        "name": "BLE options",
+                        "description": "Modify options for local Bluetooth Low Energy communication",
+                        "data": {
+                            "ble_usage": "BLE local telemetry"
+                        },
+                        "data_description": {
+                            "ble_usage": "Note: When enabled, the integration will use Bluetooth to read telemetry data directly from nearby Anker Solix devices. This provides local data as fallback when the cloud API is unavailable. Requires a Bluetooth adapter."
+                        }
+                    },
                     "test_options": {
                         "name": "Test options",
                         "description": "Modify options for testing the integration",
@@ -232,6 +242,16 @@
                         "data_description": {
                             "mqtt_usage": "Note: MQTT usage may enable additional entities and controls for your owned devices. This heavily depends on known MQTT message decoding of your device.\nFurther information: {mqtt_link}",
                             "trigger_timeout": "Devices publish real time data only if triggered. The timeout is the publish duration if not triggered again."
+                        }
+                    },
+                    "ble_options": {
+                        "name": "BLE options",
+                        "description": "Modify options for local Bluetooth Low Energy communication",
+                        "data": {
+                            "ble_usage": "BLE local telemetry"
+                        },
+                        "data_description": {
+                            "ble_usage": "Note: When enabled, the integration will use Bluetooth to read telemetry data directly from nearby Anker Solix devices. This provides local data as fallback when the cloud API is unavailable. Requires a Bluetooth adapter."
                         }
                     },
                     "test_options": {

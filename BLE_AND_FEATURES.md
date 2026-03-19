@@ -50,8 +50,9 @@ Complete BLE protocol implementation for direct device communication:
 |------|---------|
 | `__init__.py` | Constants: GATT UUIDs, negotiation commands, TLV tag keys (26 fields) |
 | `crypto.py` | ECDH key exchange (secp256r1) + AES-128-CBC session encryption |
-| `tlv.py` | TLV command encoding/decoding with 40+ opcodes (scaffolding for future BLE commands) |
-| `client.py` | Full BLE client with connection management, TLV-based telemetry parsing |
+| `tlv.py` | TLV command encoding/decoding: 25 GET + 12 SET command builders, 40+ opcodes |
+| `client.py` | Full BLE client: connection management, TLV-based telemetry parsing, 20+ high-level command methods |
+| `cache.py` | Persistent JSON cache for degraded-mode operation (identity, config, telemetry, schedule) |
 
 **BLE Protocol Stack:**
 1. Device discovery via `UUID_IDENTIFIER` (`0000ff09-...`)
@@ -236,14 +237,22 @@ The following improvements were made to the MQTT module (`mqtt.py`):
 - **Gzip decompression** (implemented): `_try_decompress()` detects gzip magic bytes (`\x1f\x8b`) and decompresses transparently. Non-gzip payloads pass through unchanged. Safe for all existing users.
 - **Port 443 TLS fallback** (implemented): `connect_client_async()` tries port 8883 first, falls back to 443 on failure. Primary port retried on each reconnect. Enables operation behind restrictive firewalls.
 - **Topic suffix logging**: 6 APK-discovered topic suffixes (`/thing/product/device`, `/ota/firmware`, `/shadow/update`, `/rule/action`, `/thing/event/post`, `/thing/property/set`) logged at debug level for future handler development.
-- **5 previously disabled commands**: The `SolixMqttCommands` dataclass includes commands identified in the APK but marked as cloud-driven: `sb_3rd_party_pv_switch`, `sb_ev_charger_switch`, `sb_usage_mode`, `plug_schedule`, `plug_delayed_toggle`. These remain as TODO stubs.
+- **7 incomplete/disabled MQTT commands** (intentionally NOT enabled): The `SolixMqttCommands` dataclass defines 7 commands that are not fully functional. All are **write/control operations** — none are read-only telemetry:
+  - `sb_usage_mode` — changes solarbank usage mode; too complex for single MQTT command (cloud API `set_device_parm` type 6 used instead)
+  - `sb_3rd_party_pv_switch` — toggles 3rd-party PV; driven through cloud API (`get_device_parm` type 26)
+  - `sb_ev_charger_switch` — toggles EV charger integration; driven through cloud API
+  - `ac_charge_limit` — AC charge limit (100-800W); correct MQTT message type unknown
+  - `sb_ac_input_limit` — AC input limit; only implemented for A17C5 (SB3), other models unclear
+  - `plug_schedule` — smart plug on/off schedules; command schema defined but incomplete
+  - `plug_delayed_toggle` — delayed power toggle; command schema defined but incomplete
+  These remain disabled because enabling them without real device validation could cause unintended state changes. See [API_ENDPOINTS.md § MQTT Command Gaps](API_ENDPOINTS.md#mqtt-command-gaps) for full analysis.
 
 ### 5. HA Integration Wiring
 
 - **manifest.json**: `after_dependencies: ["bluetooth"]` (optional, not hard dependency), `bluetooth` matchers for auto-discovery, `bleak`/`bleak-retry-connector`/`cryptography` in requirements, `iot_class` remains `cloud_polling`
-- **`__init__.py`**: `_async_setup_ble()` creates BLE coordinator if Bluetooth scanners available, registers UUID-based discovery callback, graceful skip if no BLE hardware
-- **`config_flow.py`**: `async_step_bluetooth()` redirects to cloud credentials setup
-- **`ble_coordinator.py`**: Manages multiple BLE connections, adaptive polling, cloud coordinator overlay (debug stage)
+- **`__init__.py`**: `_async_setup_ble()` creates BLE coordinator if BLE usage enabled in options AND Bluetooth scanners available, registers UUID-based discovery callback, graceful skip if no BLE hardware or toggle disabled
+- **`config_flow.py`**: `async_step_bluetooth()` redirects to cloud credentials setup; options flow includes BLE section with enable/disable toggle (default: disabled)
+- **`ble_coordinator.py`**: Manages multiple BLE connections, adaptive polling, cloud coordinator overlay for entity fallback during cloud outages, persistent local cache for degraded-mode operation (auto-queries device config on connect, caches telemetry snapshots, saves on shutdown)
 
 ---
 
@@ -313,12 +322,19 @@ This work would not have been possible without the contributions of several open
 - [x] TLV-based parsing replacing fragile fixed byte offsets
 - [x] Cloud coordinator overlay: BLE data written into cloud coordinator data dict for entity fallback during cloud outages
 - [x] API methods for VPP/Evergen (5), Dynamic Pricing (5), EV Orders (3), Reports (4), MI Status (1) — total 18 new methods
+- [x] BLE config flow toggle: Options flow BLE section with enable/disable toggle (disabled by default), gates BLE setup in `__init__.py`
+- [x] Translations: BLE options section in EN + DE + FR for both config flow and options flow
+- [x] BLE command API: 25 GET + 12 SET command builders in `tlv.py`, 20+ high-level async methods in `client.py`
+- [x] BLE local cache: `BleDeviceCache` persists identity/config/telemetry/schedule to JSON, loaded on init, saved on shutdown
+- [x] BLE coordinator cache integration: auto-queries device config on fresh connection, caches telemetry on every update, exposes `get_cached_device()` for degraded-mode operation
+- [x] Missing `import struct` fix in `client.py` (used by `send_tlv_command`)
 
 ### Pending
-- [ ] BLE entity platform: Create dedicated HA sensor entities from BLE telemetry (currently BLE supplements existing cloud entities via overlay)
-- [ ] Local LAN fallback (`10.10.100.254` AP mode)
-- [ ] Enable cloud-driven MQTT commands for local control
-- [ ] BLE config flow option to enable/disable BLE (currently auto-enabled)
+- [ ] BLE entity platform: Create dedicated HA sensor entities from BLE-only telemetry fields (grid import/export energy, per-MPPT details, firmware versions, consumed energy) — currently BLE supplements existing cloud entities via overlay
 - [ ] Integration tests for BLE module
 - [ ] Integration tests for new API methods
 - [ ] Real-device validation of TLV parsing with Solarbank 2 E1600 Pro (A17C1)
+
+### Resolved / Won't Fix
+- **~~Local LAN fallback (`10.10.100.254` AP mode)~~**: Investigation revealed that AP mode (10.10.100.254) is a **setup-only** feature used during initial WiFi provisioning. It is NOT a runtime data source. The Anker app uses BLE (not LAN) as the local fallback when the cloud API is unavailable. Our BLE coordinator already provides this local fallback capability.
+- **~~Enable cloud-driven MQTT commands~~**: All 7 incomplete/disabled MQTT commands are **write/control operations** that modify device behavior — none are read-only telemetry. Enabling them without real device testing could cause unintended state changes (e.g., switching usage modes, toggling EV charger, changing charge limits). These remain disabled until validated on real hardware. See [API_ENDPOINTS.md § MQTT Command Gaps](API_ENDPOINTS.md#mqtt-command-gaps) for per-command details.

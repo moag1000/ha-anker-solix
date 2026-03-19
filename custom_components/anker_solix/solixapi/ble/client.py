@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import struct
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -75,6 +76,33 @@ from . import (
     UUID_TELEMETRY,
 )
 from .crypto import BleSessionKeys, aes_decrypt_raw, aes_encrypt, compute_session_keys
+from .tlv import (
+    Opcodes,
+    TlvCommand,
+    TlvField,
+    cmd_get_ac_limit,
+    cmd_get_backup_mode,
+    cmd_get_battery_info,
+    cmd_get_device_info,
+    cmd_get_ems_mode,
+    cmd_get_grid_export,
+    cmd_get_grid_state,
+    cmd_get_min_soc,
+    cmd_get_output_mode,
+    cmd_get_power_info,
+    cmd_get_power_limit,
+    cmd_get_pv_limit,
+    cmd_get_schedule,
+    cmd_get_zero_export,
+    cmd_set_ac_limit,
+    cmd_set_ems_mode,
+    cmd_set_min_soc,
+    cmd_set_output_power_limit,
+    cmd_set_pv_limit,
+    cmd_set_zero_export,
+    decode_tlv_response,
+    fields_to_dict,
+)
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -782,3 +810,239 @@ class SolixBleClient:
         finally:
             self._pending_response = None
             self._pending_cmd = None
+
+    # ──────────────────────────────────────────────────────────────────
+    # High-level BLE command API
+    #
+    # These methods wrap send_command() with proper TLV encoding/decoding.
+    # GET commands return parsed dict or None on failure.
+    # SET commands return True on success.
+    #
+    # NOTE: Response parsing is speculative — response TLV field tags
+    # have not been validated on a real device. The generic dict return
+    # allows callers to inspect raw tag→value mappings regardless.
+    # ──────────────────────────────────────────────────────────────────
+
+    async def send_tlv_command(
+        self, tlv_cmd: TlvCommand
+    ) -> dict[int, TlvField] | None:
+        """Send a TLV command and decode the response.
+
+        Args:
+            tlv_cmd: TlvCommand to send.
+
+        Returns:
+            Dict of tag→TlvField from the response, or None on failure.
+
+        """
+        opcode_bytes = struct.pack("!H", tlv_cmd.opcode)
+
+        # Encode TLV fields as the command payload
+        payload = b""
+        for f in tlv_cmd.fields:
+            if f.tag <= 0xFF:
+                payload += struct.pack("!BH", f.tag, f.length) + f.value
+            else:
+                payload += struct.pack("!HH", f.tag, f.length) + f.value
+
+        result = await self.send_command(opcode_bytes, payload)
+        if result is None:
+            return None
+
+        _resp_cmd, resp_payload = result
+        try:
+            _opcode, fields = decode_tlv_response(
+                opcode_bytes + struct.pack("!H", len(resp_payload)) + resp_payload
+            )
+            return fields_to_dict(fields)
+        except (ValueError, struct.error):
+            self._logger.debug("Failed to decode TLV response", exc_info=True)
+            return None
+
+    async def async_get_device_info(self) -> dict[int, TlvField] | None:
+        """Query device info (serial, model, etc.)."""
+        return await self.send_tlv_command(cmd_get_device_info())
+
+    async def async_get_battery_info(self) -> dict[int, TlvField] | None:
+        """Query battery details (SOC, SOH, cell voltages, temperature)."""
+        return await self.send_tlv_command(cmd_get_battery_info())
+
+    async def async_get_power_info(self) -> dict[int, TlvField] | None:
+        """Query power flow details (solar, grid, output, battery)."""
+        return await self.send_tlv_command(cmd_get_power_info())
+
+    async def async_get_schedule(self) -> dict[int, TlvField] | None:
+        """Query the current charge/discharge schedule."""
+        return await self.send_tlv_command(cmd_get_schedule())
+
+    async def async_get_min_soc(self) -> int | None:
+        """Query the minimum SOC setting.
+
+        Returns:
+            SOC percentage, or None on failure.
+
+        """
+        result = await self.send_tlv_command(cmd_get_min_soc())
+        if result and 0x01 in result:
+            return result[0x01].as_int()
+        return None
+
+    async def async_set_min_soc(self, soc_percent: int) -> bool:
+        """Set the minimum SOC (power cutoff).
+
+        Args:
+            soc_percent: 0-100 (MQTT only allows 5 or 10 for SB1/SB2).
+
+        """
+        result = await self.send_tlv_command(cmd_set_min_soc(soc_percent))
+        return result is not None
+
+    async def async_get_power_limit(self) -> int | None:
+        """Query the output power limit.
+
+        Returns:
+            Power limit in watts, or None on failure.
+
+        """
+        result = await self.send_tlv_command(cmd_get_power_limit())
+        if result and 0x01 in result:
+            return result[0x01].as_int()
+        return None
+
+    async def async_set_power_limit(self, watts: int) -> bool:
+        """Set the output power limit.
+
+        Args:
+            watts: Limit in watts (model-dependent options, e.g. 350-1200).
+
+        """
+        result = await self.send_tlv_command(cmd_set_output_power_limit(watts))
+        return result is not None
+
+    async def async_get_ac_limit(self) -> int | None:
+        """Query the AC input power limit.
+
+        Returns:
+            AC limit in watts, or None on failure.
+
+        """
+        result = await self.send_tlv_command(cmd_get_ac_limit())
+        if result and 0x01 in result:
+            return result[0x01].as_int()
+        return None
+
+    async def async_set_ac_limit(self, watts: int) -> bool:
+        """Set the AC input power limit (0-1200W, step 100).
+
+        Only supported on SB2 AC (A17C2), SB3 Pro (A17C5), Power Dock (AE100).
+        """
+        result = await self.send_tlv_command(cmd_set_ac_limit(watts))
+        return result is not None
+
+    async def async_get_pv_limit(self) -> int | None:
+        """Query the PV MPPT input limit.
+
+        Returns:
+            PV limit in watts, or None on failure.
+
+        """
+        result = await self.send_tlv_command(cmd_get_pv_limit())
+        if result and 0x01 in result:
+            return result[0x01].as_int()
+        return None
+
+    async def async_set_pv_limit(self, watts: int) -> bool:
+        """Set the PV MPPT input limit (2000 or 3600W, A17C5 only)."""
+        result = await self.send_tlv_command(cmd_set_pv_limit(watts))
+        return result is not None
+
+    async def async_get_zero_export(self) -> bool | None:
+        """Query zero-export (grid export disabled) state.
+
+        Returns:
+            True if zero-export enabled, or None on failure.
+
+        """
+        result = await self.send_tlv_command(cmd_get_zero_export())
+        if result and 0x01 in result:
+            return result[0x01].as_int() != 0
+        return None
+
+    async def async_set_zero_export(self, enabled: bool, limit_w: int = 0) -> bool:
+        """Set zero-export mode (disable grid export).
+
+        Args:
+            enabled: True to prevent grid export.
+            limit_w: Export limit in watts (when enabled, 0-100000, step 100).
+
+        """
+        result = await self.send_tlv_command(cmd_set_zero_export(enabled, limit_w))
+        return result is not None
+
+    async def async_get_ems_mode(self) -> int | None:
+        """Query the EMS/usage mode.
+
+        Returns:
+            Mode int (1=manual, 2=smartmeter, ..., 8=time_slot), or None.
+
+        """
+        result = await self.send_tlv_command(cmd_get_ems_mode())
+        if result and 0x01 in result:
+            return result[0x01].as_int()
+        return None
+
+    async def async_set_ems_mode(self, mode: int, **kwargs: int | bool) -> bool:
+        """Set the EMS/usage mode.
+
+        WARNING: Complex command with mode-dependent fields. Needs device testing.
+
+        Args:
+            mode: 1=manual, 2=smartmeter, 3=smartplugs, 4=backup,
+                5=use_time, 7=smart, 8=time_slot
+            **kwargs: backup_charge, dynamic_soc_limit, backup_start_ts, backup_end_ts
+
+        """
+        result = await self.send_tlv_command(cmd_set_ems_mode(mode, **kwargs))
+        return result is not None
+
+    async def async_get_output_mode(self) -> int | None:
+        """Query output mode (smart/normal, PPS devices).
+
+        Returns:
+            Mode int (0=smart, 1=normal), or None.
+
+        """
+        result = await self.send_tlv_command(cmd_get_output_mode())
+        if result and 0x01 in result:
+            return result[0x01].as_int()
+        return None
+
+    async def async_get_grid_state(self) -> dict[int, TlvField] | None:
+        """Query grid connection state."""
+        return await self.send_tlv_command(cmd_get_grid_state())
+
+    async def async_get_grid_export(self) -> dict[int, TlvField] | None:
+        """Query grid export settings (limit, enabled)."""
+        return await self.send_tlv_command(cmd_get_grid_export())
+
+    async def async_get_backup_mode(self) -> dict[int, TlvField] | None:
+        """Query backup mode configuration."""
+        return await self.send_tlv_command(cmd_get_backup_mode())
+
+    async def async_query_device_config(self) -> dict[str, int | bool | None]:
+        """Query all readable device configuration in one batch.
+
+        Returns a dict with named config values. None values indicate
+        the command failed or was unsupported by the device.
+        """
+        config: dict[str, int | bool | None] = {}
+
+        config["min_soc"] = await self.async_get_min_soc()
+        config["power_limit"] = await self.async_get_power_limit()
+        config["ac_limit"] = await self.async_get_ac_limit()
+        config["pv_limit"] = await self.async_get_pv_limit()
+        config["zero_export"] = await self.async_get_zero_export()
+        config["ems_mode"] = await self.async_get_ems_mode()
+        config["output_mode"] = await self.async_get_output_mode()
+
+        return config

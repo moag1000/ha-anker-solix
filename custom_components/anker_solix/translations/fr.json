@@ -163,6 +163,16 @@
                             "trigger_timeout": "Les appareils ne publient des données en temps réel que lorsqu'ils ont été déclenchés. Le délai d'expiration correspond à la durée de publication s'ils ne sont pas redéclenchés."
                         }
                     },
+                    "ble_options": {
+                        "name": "Options BLE",
+                        "description": "Modifier les options de communication Bluetooth Low Energy locale",
+                        "data": {
+                            "ble_usage": "Télémétrie locale BLE"
+                        },
+                        "data_description": {
+                            "ble_usage": "Remarque: Lorsque cette option est activée, l'intégration utilise le Bluetooth pour lire les données de télémétrie directement depuis les appareils Anker Solix à proximité. Cela fournit des données locales en cas d'indisponibilité de l'API cloud. Nécessite un adaptateur Bluetooth."
+                        }
+                    },
                     "test_options": {
                         "name": "Options de test",
                         "description": "Modifier les options pour tester l'intégration",
@@ -232,6 +242,16 @@
                         "data_description": {
                             "mqtt_usage": "Remarque: L'utilisation de MQTT peut activer des fonctions et des options de contrôle supplémentaires pour vos appareils gérés. Cela dépend fortement du décryptage des messages MQTT connu du type d'appareil.\nInformations complémentaires: {mqtt_link}",
                             "trigger_timeout": "Les appareils ne publient des données en temps réel que lorsqu'ils ont été déclenchés. Le délai d'expiration correspond à la durée de publication s'ils ne sont pas redéclenchés."
+                        }
+                    },
+                    "ble_options": {
+                        "name": "Options BLE",
+                        "description": "Modifier les options de communication Bluetooth Low Energy locale",
+                        "data": {
+                            "ble_usage": "Télémétrie locale BLE"
+                        },
+                        "data_description": {
+                            "ble_usage": "Remarque: Lorsque cette option est activée, l'intégration utilise le Bluetooth pour lire les données de télémétrie directement depuis les appareils Anker Solix à proximité. Cela fournit des données locales en cas d'indisponibilité de l'API cloud. Nécessite un adaptateur Bluetooth."
                         }
                     },
                     "test_options": {

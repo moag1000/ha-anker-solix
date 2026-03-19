@@ -34,6 +34,8 @@ from .const import (
     ACCEPT_TERMS,
     ALLOW_TESTMODE,
     CONF_API_OPTIONS,
+    CONF_BLE_OPTIONS,
+    CONF_BLE_USAGE,
     CONF_ENDPOINT_LIMIT,
     CONF_MQTT_OPTIONS,
     CONF_MQTT_TEST_SPEED,
@@ -41,6 +43,7 @@ from .const import (
     CONF_SKIP_INVALID,
     CONF_TEST_OPTIONS,
     CONF_TRIGGER_TIMEOUT,
+    DEFAULT_BLE_USAGE,
     DOMAIN,
     ERROR_DETAIL,
     EXAMPLESFOLDER,
@@ -69,6 +72,7 @@ TRIGGER_TIMEOUT_DEF: int = api_client.DEFAULT_TRIGGER_TIMEOUT
 ENDPOINT_LIMIT_DEF: int = api_client.DEFAULT_ENDPOINT_LIMIT
 SKIP_INVALID_DEF: bool = False
 MQTT_USAGE_DEF: bool = api_client.DEFAULT_MQTT_USAGE
+BLE_USAGE_DEF: bool = DEFAULT_BLE_USAGE
 
 _SCAN_INTERVAL_MIN: int = 10 if ALLOW_TESTMODE else 30
 _SCAN_INTERVAL_MAX: int = 600
@@ -556,6 +560,14 @@ async def get_options_schema(entry: dict | None = None) -> dict:
         ),
     }
 
+    ble_options = entry.get(CONF_BLE_OPTIONS, {})
+    ble_options_schema = {
+        vol.Optional(
+            CONF_BLE_USAGE,
+            default=ble_options.get(CONF_BLE_USAGE, BLE_USAGE_DEF),
+        ): selector.BooleanSelector(),
+    }
+
     schema = {
         # Items grouped for Api options
         vol.Required(CONF_API_OPTIONS): section(
@@ -565,6 +577,11 @@ async def get_options_schema(entry: dict | None = None) -> dict:
         # Items grouped for MQTT options
         vol.Required(CONF_MQTT_OPTIONS): section(
             vol.Schema(mqtt_options_schema),
+            {"collapsed": True},
+        ),
+        # Items grouped for BLE options
+        vol.Required(CONF_BLE_OPTIONS): section(
+            vol.Schema(ble_options_schema),
             {"collapsed": True},
         ),
         vol.Optional(

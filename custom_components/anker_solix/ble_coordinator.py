@@ -10,12 +10,14 @@ Data origin: Anker APK v3.18.0 reverse engineering + SolixBLE protocol analysis.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, LOGGER
+from .solixapi.ble.cache import BleDeviceCache
 from .solixapi.ble.client import SolixBleClient, SolixBleDeviceInfo
 
 if TYPE_CHECKING:
@@ -45,6 +47,7 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
         self,
         hass: HomeAssistant,
         cloud_coordinator: AnkerSolixDataUpdateCoordinator | None = None,
+        config_dir: Path | None = None,
     ) -> None:
         """Initialize the BLE coordinator."""
         super().__init__(
@@ -56,6 +59,11 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
         self._cloud_coordinator = cloud_coordinator
         self._clients: dict[str, SolixBleClient] = {}
         self._last_telemetry: dict[str, tuple[datetime, SolixBleDeviceInfo]] = {}
+
+        # Persistent local cache for degraded-mode operation
+        cache_path = config_dir or Path(hass.config.config_dir)
+        self._cache = BleDeviceCache(cache_path)
+        self._cache.load()
 
     @property
     def available_devices(self) -> set[str]:
@@ -133,6 +141,10 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
                     datetime.now().astimezone(),
                     info,
                 )
+        # Cache telemetry snapshot for degraded-mode operation
+        if info.serial_number:
+            self._cache_telemetry(info)
+
         # Push update to cloud coordinator if available
         if self._cloud_coordinator:
             self._push_to_cloud_coordinator(info)
@@ -171,11 +183,11 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
         if info.ac_power_w > 0:
             ble_overlay["ac_power"] = str(info.ac_power_w)
         if info.battery_temperature > -40.0:
-            ble_overlay["battery_temperature"] = str(info.battery_temperature)
+            ble_overlay["temperature"] = str(info.battery_temperature)
         if info.discharge_power_w > 0:
-            ble_overlay["battery_power"] = str(info.discharge_power_w)
+            ble_overlay["bat_discharge_power"] = str(info.discharge_power_w)
         if info.battery_charge_power_w > 0:
-            ble_overlay["charge_power"] = str(info.battery_charge_power_w)
+            ble_overlay["bat_charge_power"] = str(info.battery_charge_power_w)
         # Per-MPPT solar (keys match sensor.py: solar_power_1..4)
         for i, pv_w in enumerate(
             [info.solar_pv1_power_w, info.solar_pv2_power_w,
@@ -187,11 +199,18 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
         if info.grid_to_home_power_w > 0:
             ble_overlay["grid_to_home_power"] = str(info.grid_to_home_power_w)
         if info.pv_to_grid_power_w > 0:
-            ble_overlay["pv_to_grid_power"] = str(info.pv_to_grid_power_w)
+            ble_overlay["photovoltaic_to_grid_power"] = str(info.pv_to_grid_power_w)
         if info.house_demand_w > 0:
             ble_overlay["home_load_power"] = str(info.house_demand_w)
         if info.power_out_w > 0:
             ble_overlay["output_power"] = str(info.power_out_w)
+        # Energy fields (BLE provides Wh, cloud uses kWh)
+        if info.grid_import_energy_wh > 0:
+            ble_overlay["grid_import_energy"] = str(info.grid_import_energy_wh / 1000.0)
+        if info.grid_export_energy_wh > 0:
+            ble_overlay["grid_export_energy"] = str(info.grid_export_energy_wh / 1000.0)
+        if info.consumed_energy_wh > 0:
+            ble_overlay["consumed_energy"] = str(info.consumed_energy_wh / 1000.0)
 
         if not ble_overlay:
             return
@@ -208,16 +227,90 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
             len(ble_overlay) - 2,  # exclude _ble_source and _ble_timestamp
         )
 
+    def _cache_telemetry(self, info: SolixBleDeviceInfo) -> None:
+        """Write telemetry snapshot to the persistent cache."""
+        sn = info.serial_number
+        if not sn:
+            return
+        self._cache.update_identity(sn, mac_address=self._mac_for_serial(sn))
+        self._cache.update_telemetry(sn, {
+            "battery_soc": info.battery_percent,
+            "solar_power": info.solar_power_w,
+            "ac_power": info.ac_power_w,
+            "battery_temperature": info.battery_temperature,
+            "discharge_power": info.discharge_power_w,
+            "charge_power": info.battery_charge_power_w,
+            "grid_to_home_power": info.grid_to_home_power_w,
+            "pv_to_grid_power": info.pv_to_grid_power_w,
+            "house_demand": info.house_demand_w,
+            "power_out": info.power_out_w,
+        })
+        # Periodic save (dirty flag ensures no-op if nothing changed)
+        self._cache.save()
+
+    async def _query_and_cache_config(self, mac: str) -> None:
+        """Query device config via BLE and cache it.
+
+        Called after a successful BLE connection to populate the cache
+        with current device settings.
+        """
+        client = self._clients.get(mac)
+        if not client or not client.is_connected:
+            return
+
+        sn = client.last_device_info.serial_number if client.last_device_info else None
+        if not sn:
+            LOGGER.debug("Cannot query config for %s: no serial number yet", mac)
+            return
+
+        LOGGER.debug("Querying device config via BLE for %s (%s)", sn, mac)
+        try:
+            config = await client.async_query_device_config()
+            # Filter out None values (unsupported commands)
+            valid_config: dict[str, Any] = {
+                k: v for k, v in config.items() if v is not None
+            }
+            if valid_config:
+                self._cache.update_config(sn, valid_config)
+                self._cache.save()
+                LOGGER.info(
+                    "Cached BLE config for %s: %s",
+                    sn,
+                    list(valid_config.keys()),
+                )
+        except Exception:  # noqa: BLE001
+            LOGGER.debug("Failed to query BLE config for %s", sn, exc_info=True)
+
+    def _mac_for_serial(self, serial: str) -> str:
+        """Find the MAC address associated with a serial number."""
+        for mac, client in self._clients.items():
+            if client.last_device_info and client.last_device_info.serial_number == serial:
+                return mac
+        return ""
+
+    def get_cached_device(self, serial: str) -> dict[str, Any]:
+        """Get cached data for a device (for degraded-mode operation).
+
+        Returns the full cache entry including identity, config, telemetry,
+        and schedule. Returns empty dict if device is unknown.
+        """
+        return self._cache.get_device(serial)
+
     async def _async_update_data(self) -> dict[str, SolixBleDeviceInfo]:
         """Poll all registered BLE devices for telemetry."""
         results: dict[str, SolixBleDeviceInfo] = {}
 
         for mac, client in list(self._clients.items()):
             try:
+                was_disconnected = not client.is_connected
                 if not client.is_connected:
                     LOGGER.debug("Attempting BLE connection to %s", mac)
                     if not await client.connect():
                         continue
+
+                # On fresh connection, query and cache device config
+                if was_disconnected and client.is_connected:
+                    await self._query_and_cache_config(mac)
 
                 # Request telemetry (the client will handle negotiation if needed)
                 info = client.last_device_info
@@ -280,7 +373,8 @@ class AnkerSolixBleCoordinator(DataUpdateCoordinator[dict[str, SolixBleDeviceInf
             )
 
     async def async_shutdown(self) -> None:
-        """Disconnect all BLE clients on shutdown."""
+        """Disconnect all BLE clients and save cache on shutdown."""
+        self._cache.save()
         for mac in list(self._clients):
             await self.unregister_device(mac)
         await super().async_shutdown()
