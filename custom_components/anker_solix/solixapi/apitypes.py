@@ -264,6 +264,10 @@ API_CHARGING_ENDPOINTS: Final[dict] = {
     "get_configs": "charging_energy_service/get_configs",  # json={"siteId": "SITEID", "sn": "POWERPANELSN", "param_types": []})) # needs owner account, list of parm types not clear
     "get_sns": "charging_energy_service/get_sns",  # json={"main_sn": "POWERPANELSN","macs": ["F38001MAC001","F38002MAC002"]})) # needs owner account, Displays Serial Numbers of attached PPS in Home
     "get_monetary_units": "charging_energy_service/get_world_monetary_unit",  # monetary unit list for system, needs owner account
+    # Power Panel disaster preparedness (APK: charging_disaster_prepared)
+    "get_disaster_config": "charging_disaster_prepared/get_site_device_disaster",  # get disaster config, {"identifier_id": siteId, "type": 2}, works with shared account
+    "get_disaster_status": "charging_disaster_prepared/get_site_device_disaster_status",  # get disaster status, {"identifier_id": siteId, "type": 2}, works with shared account
+    "get_disaster_support": "charging_disaster_prepared/get_support_func",  # get supported disaster functions, {"identifier_id": siteId, "type": 2}, works with shared account
 }
 
 """Following are the Anker Power/Solix Cloud API charging_hes_svc endpoints known so far. They are used for Home Energy Systems like X1."""
@@ -294,9 +298,24 @@ API_HES_SVC_ENDPOINTS: Final[dict] = {
     "get_auto_disaster_detail": "charging_hes_svc/get_auto_disaster_prepare_detail",  # Get auto disaster preparedness detail
     "get_current_disaster_detail": "charging_hes_svc/get_current_disaster_prepare_detail",  # Get current disaster preparedness detail
     "get_backup_history": "charging_hes_svc/get_back_up_history",  # Get backup history for disaster preparedness
+    # HES station config and device info
+    "get_station_config": "charging_hes_svc/get_station_config_and_status",  # station config and status
+    "get_tou_price_plan": "charging_hes_svc/get_tou_price_plan_detail",  # TOU price plan detail
+    "get_external_device_config": "charging_hes_svc/get_external_device_config",  # external device config (e.g. heat pump)
+    "get_device_pn_info": "charging_hes_svc/get_device_pn_info",  # device part number info
+    "get_station_evchargers": "charging_hes_svc/get_station_evchargers",  # EV chargers in HES station, needs owner
+    "get_utility_rate_plan": "charging_hes_svc/get_utility_rate_plan",  # HES utility rate plan
+    "get_user_fault_info": "charging_hes_svc/get_user_fault_info",  # user fault information
+    "get_history_setting": "charging_hes_svc/get_history_setting",  # history settings, needs owner
+    "get_site_mi_list": "charging_hes_svc/get_site_mi_list",  # site micro inverter list
+    "get_system_device_time": "charging_hes_svc/get_system_device_time",  # system device time
+    # HES dynamic pricing (APK: charging_hes_dynamic_price_svc)
+    "get_hes_dynamic_price_area": "charging_hes_dynamic_price_svc/get_area_by_code",  # get area by code, needs owner
+    "get_hes_dynamic_price": "charging_hes_dynamic_price_svc/get_price",  # get dynamic price, needs owner
+    "get_hes_dynamic_price_company": "charging_hes_dynamic_price_svc/get_price_company",  # get price company, needs owner
 }
 
-""" Other endpoints neither implemented nor explored: ~170 not used + 163 used => ~333
+""" Other endpoints neither implemented nor explored: ~154 not used + 179 used => ~333
 NOTE: Endpoints now in the active dicts above were removed from this list.
 Endpoints marked with APK: were found in libapp.so strings (Anker App v3.18.0) but not yet tested.
 
@@ -444,7 +463,7 @@ PPS and Power Panel related: 6 + 12 used => 18 total
     "charging_energy_service/ack_utility_rate_plan",
     "charging_energy_service/adjust_station_price_unit",
 
-Home Energy System related (X1): 37 + 27 used => 64 total
+Home Energy System related (X1): 27 + 37 used => 64 total
     "charging_hes_svc/adjust_station_price_unit",
     "charging_hes_svc/cancel_pop",
     "charging_hes_svc/check_update",
@@ -455,19 +474,9 @@ Home Energy System related (X1): 37 + 27 used => 64 total
     "charging_hes_svc/deal_share_data",
     "charging_hes_svc/download_energy_statistics",
     "charging_hes_svc/get_device_command",
-    "charging_hes_svc/get_device_pn_info",
     "charging_hes_svc/get_device_card_list",
     "charging_hes_svc/get_device_card_details",
     "charging_hes_svc/get_device_self_check",
-    "charging_hes_svc/get_external_device_config",
-    "charging_hes_svc/get_history_setting", # needs owner
-    "charging_hes_svc/get_site_mi_list",
-    "charging_hes_svc/get_station_config_and_status",
-    "charging_hes_svc/get_system_device_time",
-    "charging_hes_svc/get_tou_price_plan_detail",
-    "charging_hes_svc/get_user_fault_info",
-    "charging_hes_svc/get_station_evchargers",  # needs owner
-    "charging_hes_svc/get_utility_rate_plan",
     "charging_hes_svc/get_vpp_check_code",
     "charging_hes_svc/get_vpp_service_policy_by_agg_user",
     "charging_hes_svc/update_device_info_by_app",
@@ -488,21 +497,15 @@ Home Energy System related (X1): 37 + 27 used => 64 total
     "charging_hes_svc/share_device/invite_installer_member",
     "charging_hes_svc/share_device/get_installer_invited_list",
 
-HES dynamic pricing related: 6 + 0 used => 6 total
-    "charging_hes_dynamic_price_svc/get_area_by_code", # needs owner
-    "charging_hes_dynamic_price_svc/get_price_company", # needs owner
-    "charging_hes_dynamic_price_svc/get_price", # needs owner
+HES dynamic pricing related: 3 + 3 used => 6 total
     "charging_hes_dynamic_price_svc/save_time_of_use", # needs owner
     "charging_hes_dynamic_price_svc/save_dynamic_price", # needs owner
     "charging_hes_dynamic_price_svc/get_third_jump_url",
 
-Power Panel disaster preparedness: 7 + 0 used => 7 total
-    'charging_disaster_prepared/get_site_device_disaster', # {"identifier_id": siteId, "type": 2})) # works with Power panel site and shared account
-    'charging_disaster_prepared/get_site_device_disaster_status', # {"identifier_id": siteId, "type": 2})) # works with Power panel site and shared account
+Power Panel disaster preparedness: 4 + 3 used => 7 total
     'charging_disaster_prepared/set_site_device_disaster',
     'charging_disaster_prepared/clear',
     'charging_disaster_prepared/quit_disaster_prepare',
-    'charging_disaster_prepared/get_support_func', # {"identifier_id": siteId, "type": 2})) # works with Power panel site and shared account
     'charging_disaster_prepared/disaster_detail',
 
 related to Prime charger models: 12 + 5 used => 17 total
@@ -730,6 +733,25 @@ API_FILEPREFIXES: Final[dict] = {
     "hes_get_auto_disaster_detail": "hes_auto_disaster_detail",
     "hes_get_current_disaster_detail": "hes_current_disaster_detail",
     "hes_get_backup_history": "hes_backup_history",
+    # HES station config file prefixes
+    "hes_get_station_config": "hes_station_config",
+    "hes_get_tou_price_plan": "hes_tou_price_plan",
+    "hes_get_external_device_config": "hes_external_device_config",
+    "hes_get_device_pn_info": "hes_device_pn_info",
+    "hes_get_station_evchargers": "hes_station_evchargers",
+    "hes_get_utility_rate_plan": "hes_utility_rate_plan",
+    "hes_get_user_fault_info": "hes_user_fault_info",
+    "hes_get_history_setting": "hes_history_setting",
+    "hes_get_site_mi_list": "hes_site_mi_list",
+    "hes_get_system_device_time": "hes_system_device_time",
+    # HES dynamic pricing file prefixes
+    "hes_get_hes_dynamic_price_area": "hes_dynamic_price_area",
+    "hes_get_hes_dynamic_price": "hes_dynamic_price",
+    "hes_get_hes_dynamic_price_company": "hes_dynamic_price_company",
+    # Power Panel disaster preparedness file prefixes
+    "charging_get_disaster_config": "charging_disaster_config",
+    "charging_get_disaster_status": "charging_disaster_status",
+    "charging_get_disaster_support": "charging_disaster_support",
 }
 
 
